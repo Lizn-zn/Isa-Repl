@@ -83,7 +83,7 @@ resolvers ++= Resolver.sonatypeOssRepos("snapshots")
 
 // Configure assembly settings
 assembly / assemblyOutputPath := file("target/IsaREPL.jar")
-
+assembly / mainClass := Some("org.isarepl.IsaReplGatewayServer")
 assembly / assemblyMergeStrategy := {  
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard  
   case x => MergeStrategy.first  

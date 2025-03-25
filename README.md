@@ -11,7 +11,7 @@ cd scala-isabelle
 sbt publishLocal
 ```
 
-#### 2. Isabelle [Isabelle], and set the environment variable `ISABELLE_HOME` to indicate Isabelle installation.
+#### 2. Install [Isabelle], and set the environment variable `ISABELLE_HOME` to indicate Isabelle installation.
 ```shell
 export ISABELLE_HOME=/path/to/Isabelle2024/
 ```
@@ -26,24 +26,14 @@ export ISABELLE_HOME=/path/to/Isabelle2024/
 sbt assembly
 ```
 
+#### Test Python-JVM connection
 
-
-4. Run `python-test/test.py` to check whether the JAR file has been successfully created.
-```shell
-Transition: ""
-Transition: "theory Test imports Main HOL.Real begin"
-Transition: ""
-Transition: "lemma fixes a :: real shows "a^2+2*a+1 >= 0""
-Transition: ""
-(true,(some,List(Try this: by (metis ab_semigroup_mult_class.mult_ac(1) add.commute add.left_commute mult.commute mult.right_neutral power2_eq_square power2_sum ring_class.ring_distribs(1) ring_class.ring_distribs(2) zero_le_square))))
-Text( theory Test imports Main HOL.Real begin lemma fixes a :: real shows "a^2+2*a+1 >= 0" ,./Test.thy,position (computing))
+#### 1. Start JVM server 
+```
+java -jar target/IsaREPL.jar 25555
 ```
 
-5. To run the isabelle checker in Java, you should copy the jar file to the Java lib.
-```shell
-cp target/scala-2.12/scala-isabelle-assembly-1.0.jar ../JaChecker/demo/lib/
+#### 2. Test the JVM server 
 ```
-   
-## More tips
-
-You can modify ```theorySource``` in [RepHammer.scala](scala-isa-project/src/main/scala/test/RepHammer.scala) and then run sbt run directly for quick debugging. When you want to update the jar package, you need to re-run ```sbt assembly```
+python python-test/test_repl.py
+```
