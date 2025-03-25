@@ -68,7 +68,7 @@ object Test_IsaRepl {
     val result7: String = isa_repl.step(proof_string6)
     println(result7)
 
-    println("done")
+    println("success")
 
     // Get the facts (to be proved) of the current state
     // implicit val isabelle = isa_repl.isabelle

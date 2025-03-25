@@ -57,6 +57,7 @@ object Test_SmtRepl {
     val result3: String = isa_repl.step_without_timeout(proof_string)
     println(result3)
     
+    println("success")
 
   }
 

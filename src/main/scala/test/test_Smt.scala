@@ -134,5 +134,7 @@ object Test_Smt {
     val result = translate_to_smt(toplevel).force.retrieveNow
     println(result)
 
+    println("success")
+
   }
 }

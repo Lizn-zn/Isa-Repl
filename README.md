@@ -2,6 +2,8 @@
 IsaPy wraps a Python REPL for Isabelle based on the [py4j] and [scala-isabelle]
 
 ## Installation
+
+## JAR Compilation
 #### 1. Clone the repository
 ```shell
 git clone https://github.com/Lizn-zn/scala-isabelle
@@ -14,22 +16,17 @@ sbt publishLocal
 export ISABELLE_HOME=/path/to/Isabelle2024/
 ```
 
-#### 3. Install [Scala](https://www.scala-sbt.org/1.x/docs/zh-cn/Installing-sbt-on-Linux.html) and 
-
-#### 4. 
-
-
-<!-- 2. Install PySpark:  
+#### 3. Install [Scala](https://www.scala-sbt.org/1.x/docs/zh-cn/Installing-sbt-on-Linux.html). Run the following command to check whether the installation is successful.
 ```shell
-pip install pyspark
+./src/test/test.sh 
 ```
-Run `pyspark --version` to check the installation. Please be careful about the pyspark version.
 
-3. Compile and create a JAR file with all the dependencies included:  
-```shell
+#### 4. Compile and create a JAR file at `target/IsaREPL.jar` with all the dependencies included.
+```
 sbt assembly
 ```
-This command will create a JAR file at `/target/scala-2.12/scala-isabelle-assembly-1.0.jar`.
+
+
 
 4. Run `python-test/test.py` to check whether the JAR file has been successfully created.
 ```shell

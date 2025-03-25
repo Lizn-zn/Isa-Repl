@@ -77,22 +77,14 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % 
 
 // libraryDependencies += "de.unruh" %% "scala-isabelle" % "0.4.1"  // release
 libraryDependencies += "default" % "scala-isabelle_2.13" % "1.0.0"
+libraryDependencies += "net.sf.py4j" % "py4j" % "0.10.9.7"
 
 resolvers ++= Resolver.sonatypeOssRepos("snapshots")
+
+// Configure assembly settings
+assembly / assemblyOutputPath := file("target/IsaREPL.jar")
 
 assembly / assemblyMergeStrategy := {  
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard  
   case x => MergeStrategy.first  
 }  
-
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.15" % Test
-
-// Test settings
-Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
-
-// Source directory mappings
-Compile / scalaSource := baseDirectory.value / "src" / "main" / "scala"
-Test / scalaSource := baseDirectory.value / "src" / "main" / "scala" / "test"
-
-// Run all tests in parallel
-Test / parallelExecution := true

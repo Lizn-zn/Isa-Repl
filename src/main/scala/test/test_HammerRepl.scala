@@ -59,7 +59,7 @@ object Test_HammerRepl {
     val result3: String = isa_repl.step(proof_string)
     println(result3)
 
-    println("done")
+    println("success")
 
   }
 

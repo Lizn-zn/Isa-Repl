@@ -112,6 +112,8 @@ object Test_Hammer {
     // (true,(some,List(Try this: by (smt (verit) mult_cancel_right2 one_power2 power2_sum power_0 power_commutes zero_le_power2) (222 ms))))
     println(result)
 
+    println("success")
+
   }
 
 }
