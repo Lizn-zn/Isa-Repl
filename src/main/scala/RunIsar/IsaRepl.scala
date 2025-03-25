@@ -448,6 +448,60 @@ class IsaREPL(
   thy1.await
   if (debug) println("Checkpoint 10: Loading theory finished")
 
+  // setting up SMT_translate
+  val Skip_Proof : String = thy1.importMLStructureNow("Skip_Proof")
+  val SMT_Config : String = thy1.importMLStructureNow("SMT_Config")
+  val SMT_Normalize : String = thy1.importMLStructureNow("SMT_Normalize")
+  val SMT_Util : String = thy1.importMLStructureNow("SMT_Util")
+  val SMT_Translate : String = thy1.importMLStructureNow("SMT_Translate")
+  val translate_to_smt: MLFunction[ToplevelState, String] =  
+      compileFunction[ToplevelState, String](  
+        s""" fn (state) =>  
+            |    let  
+            |       val p_state = Toplevel.proof_of state;  
+            |       val thy = Toplevel.theory_of state;
+            |       val ctxt = Proof.context_of p_state;  
+            |
+            |       (* Load some lemmas previously. *)  
+            |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
+            |       val ccontr = Proof_Context.get_thm ctxt "ccontr";
+            |  
+            |       (* Extract the assumptions and the conclusion of the theorem. *)  
+            |       val {context = _, facts, goal} = Proof.goal p_state;  
+            |       val assumptions = Assumption.all_prems_of ctxt;  
+            |       val goals = map (Skip_Proof.make_thm thy) (Thm.prems_of goal); 
+            |  
+            |  
+            |       (* Put the assumptions in facts and the conclusion in goal. *)  
+            |       val options = ${SMT_Config}.solver_options_of ctxt;  
+            |       val comments = [space_implode " " options];  
+            |       val has_topsort = Term.exists_type (Term.exists_subtype (fn  
+            |          TFree (_, []) => true  
+            |         | TVar (_, []) => true  
+            |         | _ => false));  
+            |       fun check_topsort ctxt thm =  
+            |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm  
+            |
+            |       val thms0 = facts @ assumptions;  
+            |       val thms = map (pair ${SMT_Util}.Axiom o check_topsort ctxt) thms0; 
+            |       val assms_thms = (${SMT_Normalize}.normalize ctxt thms);
+            |       
+            |       val thms0 = goals;  
+            |       val thms = map (pair ${SMT_Util}.Conjecture o check_topsort ctxt) thms0; 
+            |       val conc_thms = (${SMT_Normalize}.normalize ctxt thms);
+            |
+            |       val ithms = assms_thms @ conc_thms;
+            |  
+            |       fun go_run () = 
+            |         let 
+            |           val (str, _) = ${SMT_Translate}.translate ctxt "z3" [] comments ithms
+            |         in 
+            |           str  end  
+            |    in  
+            |       Timeout.apply (Time.fromSeconds 180) go_run () end 
+          |""".stripMargin  
+      )  
+
   // setting up Sledgehammer
   // val thy_for_sledgehammer: Theory = Theory("HOL.List")
   val thy_for_sledgehammer = thy1
@@ -551,6 +605,17 @@ class IsaREPL(
     ).retrieveNow.force
   }
 
+  def singleTransitionWithoutTimeout(
+      single_transition: Transition.T,
+      top_level_state: ToplevelState
+  ): ToplevelState = {
+    command_exception(
+      true,
+      single_transition,
+      top_level_state
+    ).retrieveNow.force
+  }
+
   def singleTransition(
       single_transition: Transition.T,
       top_level_state: ToplevelState
@@ -616,10 +681,16 @@ class IsaREPL(
             continue.breakable {
               if (text.trim.isEmpty) continue.break()
               // println("Small step : " + text)
-              if (debug) println("singleTransition: " + timeout_in_millis)
-              tls_to_return = if (timeout_in_millis > 10000) {
-                singleTransitionWith30sTimeout(transition, tls_to_return)
-              } else singleTransitionWith10sTimeout(transition, tls_to_return)
+              if (debug) println("singleTransition with timeout " + timeout_in_millis)
+              tls_to_return = if (timeout_in_millis > 100000) {
+                singleTransitionWithoutTimeout(transition, tls_to_return)
+              } else {
+                if (timeout_in_millis > 30000) {
+                  singleTransitionWith30sTimeout(transition, tls_to_return)
+                } else {
+                  singleTransitionWith10sTimeout(transition, tls_to_return)
+                }
+              }
               // println("Applied transition successfully")
             }
           }
@@ -634,12 +705,24 @@ class IsaREPL(
     tls_to_return
   }
 
+  def translate_to_smt_with_timeout(  
+      top_level_state: ToplevelState,  
+      timeout_in_millis: Int = 35000  
+  ): String = {  
+    val f_res: Future[String] = Future.apply {  
+      val result = translate_to_smt(top_level_state).force.retrieveNow 
+      result  
+    }  
+    Await.result(f_res, Duration(timeout_in_millis, "millis"))  
+  }  
+
   def normal_with_hammer(
       top_level_state: ToplevelState,
       added_names: List[String],
       deleted_names: List[String],
       timeout_in_millis: Int = 35000
   ): (Boolean, List[String]) = {
+    if (debug) println("Checkpoint Hammer1: Begin normal_with_hammer")
     val f_res: Future[(Boolean, List[String])] = Future.apply {
       val first_result = normal_with_Sledgehammer(
         top_level_state,
@@ -649,6 +732,7 @@ class IsaREPL(
       ).force.retrieveNow
       (first_result._1, first_result._2._2)
     }
+    if (debug) println("Checkpoint Hammer2: Finish & Await result")
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
@@ -721,43 +805,56 @@ class IsaREPL(
     accumulative_step_through_a_theorem
   }
   
+
+  /* ==================================================================================
+  The following functions are prepared interfaces for Isa-REPL
+  1. compile(): None or String. If None, the original thy file is compiled. If String, the string is compiled.
+  2. step(): String. Apply a single transition to the current state.
+  3. step_with_30s(): String. Apply a single transition to the current state with 30s timeout.
+  4. step_without_timeout(): String. Apply a single transition to the current state without timeout.
+  5. translate_to_smt(): String. Translate the current state to SMT.  
+  6. prove_by_hammer(): (Boolean, String). Apply sledgehammer to the current state.
+  ================================================================================== */
+
   /*
-  This function is used to get the target state by executing the isar_string from the current state.
-  The isar_string can be a long sequence of commands, e.g., "lemma fixes x :: int shows "x ^ 3 = x * x * x \n proof-"
-  If after is true, the function will return the state after the transition.
-  Otherwise, it will return the state before the transition.  
+  This function is used to compile the original thy file.
   */
-  def step_to_transition_text(
-      isar_string: String,
-      after: Boolean = true
-  ): String = {
-    if (debug) println("Checkpoint 15_1: step to transition text")
-    if (debug) println("Cmds to be executed: " + isar_string)
+  def compile(): String = {
     var stateString: String = ""
-    val continue = new Breaks
-    Breaks.breakable {
-      for (
-        (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
-      ) {
-        if (debug) println("Transition: " + text)
-        continue.breakable {
-          if (text.trim.isEmpty) continue.break()
-          val trimmed_text =
-            text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
-          if (trimmed_text == isar_string) {
-            if (after) stateString = singleTransition(transition)
-            return stateString
-          }
-          stateString = singleTransition(transition)
-        }
+    var context_length: Int = fileContent.split("\n").length
+    if (context_length > 5) {
+      throw new Exception("Compilation context is too complex" )
+    }
+    for (
+      (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
+    ) {
+      // Avoid too complex context if \n >> 5
+      if (text.trim.nonEmpty) {
+        if (debug) println("Compilation Context: " + text)
+        stateString = singleTransition(transition)
       }
     }
-    // println("Did not find the text")
     stateString
   }
 
-  // ==================================================================================
-  // Give five port for interaction
+  // compile the isar string
+  def compile(isar_string: String): String = {
+    var stateString: String = ""
+    var context_length: Int = isar_string.split("\n").length
+    if (context_length > 5) {
+      throw new Exception("Compilation context is too complex" )
+    }
+    for (
+      (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
+    ) {
+      // Avoid too complex context if \n >> 5
+      if (text.trim.nonEmpty) {
+        if (debug) println("Compilation Context: " + text)
+        stateString = singleTransition(transition)
+      }
+    }
+    stateString
+  }
 
   def step(isar_string: String): String = {
     toplevel = step(isar_string, toplevel)
@@ -769,32 +866,57 @@ class IsaREPL(
     getStateString
   }
 
-  // todo: using java output
+  def step_without_timeout(isar_string: String): String = {
+    toplevel = step(isar_string, toplevel, 300000)
+    getStateString
+  }
+
+  def translate_to_smt(timeout_in_millis: Int = 35000): String = {  
+    val result = translate_to_smt_with_timeout(toplevel, timeout_in_millis)  
+    result  
+  }  
+
   def prove_by_hammer(timeout_in_millis: Int = 35000): (Boolean, String) = {
     val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
-    val results: String = tactic.mkString("###")  
+    val results: String = tactic.mkString("\u001F")  
+    if (debug) println("Results: " + results)
     (ok, results)
   }
-  // todo: using java output
-  // run the theory before proof, and slice the proof
-  def parse_theory(isar_string: String): String = {
-    if (debug) println("Checkpoint 15_2: parse theory")
-    var stateString: String = ""
-    val steps = new StringBuffer("")
-    var compile: Boolean = true
-      for (
-        (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
-      ) {
-        if (debug) println("Transition: " + text)
-        if (compile) {
-          stateString = singleTransition(transition)
-        } else {
-          steps.append("###" + text)
-        }
-        if (text == "proof-") compile = false
-      }
-    steps.toString
-  }
+
+  // // todo: using java output
+  // // run the theory before proof, and slice the proof
+  // def parse_theory(isar_string: String): String = {
+  //   if (debug) println("Checkpoint 15_2: parse theory")
+  //   var stateString: String = ""
+  //   val steps = new StringBuffer("")
+  //   var compile: Boolean = true
+  //     for (
+  //       (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
+  //     ) {
+  //       if (debug) println("Transition: " + text)
+  //       if (compile) {
+  //         stateString = singleTransition(transition)
+  //       } else {
+  //         steps.append("\x1f" + text)
+  //       }
+  //       if (text == "proof-") compile = false
+  //     }
+  //   steps.toString
+  // }
+
+  // // parse a string into a list of executable commands
+  // // TODO test it!
+  // def parse_to_commands(isar_string: String): List[String] = {
+  //   var commands: List[String] = List()
+  //   for (
+  //     (transition, text) <- parse_text(thy1, isar_string).force.retrieveNow
+  //   ) {
+  //     if (text.trim.nonEmpty) {
+  //       commands = commands :+ text
+  //     }
+  //   }
+  //   commands
+  // }
   
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {

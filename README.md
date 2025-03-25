@@ -1,5 +1,5 @@
 ## Main process
-We use the `scala-isabelle` as the interface to Isabelle, and then use `py4j` to call the scala function in python.
+IsaPy wraps a Python REPL for Isabelle based on the [py4j] and [scala-isabelle]
 
 ## Installation
 #### 1. Clone the repository
@@ -9,12 +9,12 @@ cd scala-isabelle
 sbt publishLocal
 ```
 
-#### 2. Install [Sbt](https://www.scala-sbt.org/1.x/docs/zh-cn/Installing-sbt-on-Linux.html) and Isabelle, and 
-
-#### 3. Set the environment variable `ISABELLE_HOME` to indicate Isabelle installation.
+#### 2. Isabelle [Isabelle], and set the environment variable `ISABELLE_HOME` to indicate Isabelle installation.
 ```shell
 export ISABELLE_HOME=/path/to/Isabelle2024/
 ```
+
+#### 3. Install [Scala](https://www.scala-sbt.org/1.x/docs/zh-cn/Installing-sbt-on-Linux.html) and 
 
 #### 4. 
 

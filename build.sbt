@@ -1,4 +1,3 @@
-
 // The simplest possible sbt build file is just one line:
 
 scalaVersion := "2.13.14"
@@ -85,3 +84,15 @@ assembly / assemblyMergeStrategy := {
   case PathList("META-INF", xs @ _*) => MergeStrategy.discard  
   case x => MergeStrategy.first  
 }  
+
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.15" % Test
+
+// Test settings
+Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
+
+// Source directory mappings
+Compile / scalaSource := baseDirectory.value / "src" / "main" / "scala"
+Test / scalaSource := baseDirectory.value / "src" / "main" / "scala" / "test"
+
+// Run all tests in parallel
+Test / parallelExecution := true
