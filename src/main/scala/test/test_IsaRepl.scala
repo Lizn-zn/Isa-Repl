@@ -21,7 +21,8 @@ object Test_IsaRepl {
     val isa_repl = new IsaREPL(
       path_to_isa_bin = path_to_isa_bin,
       path_to_file = path_to_file,
-      working_directory = working_directory
+      working_directory = working_directory,
+      debug = true
     )
     
     // 1. compile the file, i.e., Test.thy

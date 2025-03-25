@@ -60,7 +60,7 @@ class IsaREPL(
     var path_to_isa_bin: String,
     var path_to_file: String,
     var working_directory: String,
-    var debug: Boolean = true
+    var debug: Boolean = false
 ) {
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context

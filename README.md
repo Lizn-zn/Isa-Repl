@@ -1,7 +1,56 @@
 ## Main process
-IsaPy wraps a Python REPL for Isabelle based on the [py4j] and [scala-isabelle]
+Isa-Repl wraps a Python REPL for Isabelle based on the [py4j] and [scala-isabelle]
 
 ## Installation
+#### 1. Clone the repository
+```
+git clone https://github.com/Lizn-zn/Isa-Repl
+```
+
+#### 2. Path configuration
+```
+export ISABELLE_HOME=/path/to/Isabelle2024/
+export Isa_REPL=/path/to/Isa-Repl/target/IsaREPL.jar
+```
+
+## Usage
+
+#### 1. Start the JVM server
+```shell
+java -c Isa_REPL 25333
+```
+
+#### 2. Initialize the REPL
+```python
+theory_file = os.path.abspath("python-test/Test.thy")
+isa_repl.initializeRepl(theory_file)
+```
+
+#### 3. Compile the theorem environment
+```python
+isa_repl.compile("theory Test imports Main HOL.HOL HOL.Real Complex_Main")
+```
+
+#### 4. Step the theorem or proof
+```python
+isa_repl.step("lemma fixes x :: int shows \"x ^ 3 = x * x * x\" \n proof- \n")
+isa_repl.step("show ?thesis by (simp add: numeral_eq_Suc)")
+```
+
+#### 5. Call the sledgehammer
+```python
+isa_repl.step("lemma fixes x :: int shows \"x ^ 2 = x * x\" \n proof- \n")
+isa_repl.prove_by_hammer()
+```
+
+#### 6. Apply the SMT translation
+```python
+isa_repl.step("lemma fixes x :: int shows \"x ^ 2 = x * x\" \n proof- \n")
+isa_repl.translate_to_smt()
+```
+
+
+
 
 ## JAR Compilation
 #### 1. Clone the repository
