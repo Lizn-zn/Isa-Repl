@@ -10,14 +10,14 @@ git clone https://github.com/Lizn-zn/Isa-Repl
 #### 2. Path configuration
 ```
 export ISABELLE_HOME=/path/to/Isabelle2024/
-export Isa_REPL=/path/to/Isa-Repl/target/IsaREPL.jar
+export ISA_REPL_PATH=/path/to/Isa-Repl/target/IsaREPL.jar
 ```
 
 ## Usage
 
 #### 1. Start the JVM server
-```shell
-java -c Isa_REPL 25333
+```python
+process = subprocess.Popen(["java", "-jar", os.getenv("ISA_REPL_PATH"), 25333])
 ```
 
 #### 2. Initialize the REPL
