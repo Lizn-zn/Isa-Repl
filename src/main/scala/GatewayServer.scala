@@ -2,6 +2,7 @@ package org.isarepl
 
 import py4j.GatewayServer
 import RunIsar.IsaREPL
+import de.unruh.isabelle.control.IsabelleMLException
 import java.nio.file.Paths
 
 class IsaReplApplication {
@@ -10,7 +11,7 @@ class IsaReplApplication {
   
   private var repl: IsaREPL = _
   
-  def initializeRepl(pathToFile: String): Unit = {
+  def _initializeRepl(pathToFile: String): Unit = {
     repl = new IsaREPL(
       path_to_isa_bin = isabelleHome,
       path_to_file = pathToFile,
@@ -18,36 +19,89 @@ class IsaReplApplication {
     )
   }
   
-  def compile(): String = {
-    repl.compile()
+  def _compile(): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.compile()
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for compile the isar environment. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
-  def compile(isarProof: String): String = {
-    repl.compile(isarProof)
+  def _compile(isarProof: String): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.compile(isarProof)
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for compile the isar environment `$isarProof`. Get msg: ${e.getMessage}"
+    }
+    result
   }
   
-  def step(command: String): String = {
-    repl.step(command)
+  def _step(command: String): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.step(command)
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
-  def step_with_30s_timeout(command: String): String = {
-    repl.step_with_30s(command)
+  def _step_with_30s_timeout(command: String): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.step_with_30s(command)
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
-  def step_without_timeout(command: String): String = {
-    repl.step_without_timeout(command)
+  def _step_without_timeout(command: String): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.step_without_timeout(command)
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
-  def translate_to_smt(): String = {
-    repl.translate_to_smt()
+  def _translate_to_smt(): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.translate_to_smt()
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for translate the goal to smt. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
-  def prove_by_hammer(): (Boolean, String) = {
-    repl.prove_by_hammer()
+  def _prove_by_hammer(): String = {
+    val result = try{
+        val (ok, results) = repl.prove_by_hammer()
+        if (ok) {
+          "True" + "<\\SEP>" + results
+        } else {
+          "False" + "<\\SEP>" + results
+        }
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
-  def parse_to_steps(isar_string: String): String = {
-    repl.parse_to_steps(isar_string)
+  def _parse_to_steps(isar_string: String): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.parse_to_steps(isar_string)
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for parse the isar proof to steps. Get msg: ${e.getMessage}"
+    }
+    result
   }
 
 }

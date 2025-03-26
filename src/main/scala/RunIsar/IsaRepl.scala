@@ -531,7 +531,7 @@ class IsaREPL(
             |             val p_state = Toplevel.proof_of state;
             |             val ctxt = Proof.context_of p_state;
             |             val params = ${Sledgehammer_Commands}.default_params thy
-            |                [("provers", "cvc4 vampire verit e spass z3 zipperposition"),("timeout","60"),("verbose","true")];
+            |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),("timeout","60"),("verbose","true")];
             |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
             |             val (result, (outcome, step)) = results;
             |           in
@@ -897,8 +897,7 @@ class IsaREPL(
 
   def prove_by_hammer(timeout_in_millis: Int = 35000): (Boolean, String) = {
     val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
-    val results: String = tactic.mkString("\u001F")  
-    if (debug) println("Results: " + results)
+    val results: String = tactic.mkString("<\\SEP>")  
     (ok, results)
   }
 
@@ -914,7 +913,7 @@ class IsaREPL(
       (transition, text) <- parse_text(thy1, isar_string_trim).force.retrieveNow
     ) {
       if (text.trim.nonEmpty) {
-        steps = steps + "\u001F" + text
+        steps = steps + "<\\SEP>" + text
       }
     }
     steps
