@@ -67,16 +67,16 @@ goal (1 subgoal):
  1. 0 < a + b
 Checkpoint Hammer1: Begin normal_with_hammer
 Checkpoint Hammer2: Finish & Await result
-Results: Try this: using ha hb by fastforce (6 ms)
-Try this: using ha hb by fastforce (6 ms)
+Results: Try this: using ha hb by force (4 ms)
+Try this: using ha hb by force (4 ms)
 Begin step
 Starting to step
-start parsing  using ha hb by fastforce 
+start parsing  using ha hb by force 
 Transition:  
 Transition: using ha hb
 singleTransition with timeout 2000
 Transition:  
-Transition: by fastforce
+Transition: by force
 singleTransition with timeout 2000
 Transition:  
 Finish step, the current state is proof (state)
@@ -92,4 +92,4 @@ this:
 goal:
 No subgoals!
 success
-[success] Total time: 24 s, completed Mar 25, 2025, 5:11:01 AM
+[success] Total time: 24 s, completed Mar 26, 2025, 6:40:08 AM

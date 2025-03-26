@@ -12,19 +12,29 @@ WARNING: Restricted methods will be blocked in a future release unless native ac
 [info] loading project definition from /home/lizn/workspace/IsaREPL/project
 [info] loading settings for project isarepl from build.sbt...
 [info] set current project to scala-isabelle (in build file:/home/lizn/workspace/IsaREPL/)
-[info] running RunIsar.Test_Hammer 
-Text( theory Test imports Main HOL.HOL HOL.Real Complex_Main begin lemma fixes a :: real shows "a ^ 2 + 2 * a + 1 >= 0" ,/home/lizn/workspace/IsaREPL/Test.thy,position (computing))
-context (computing)
-Transition: ""
-context (computing)
-Transition: "theory Test imports Main HOL.HOL HOL.Real Complex_Main begin"
-context (computing)
-Transition: ""
-context (computing)
-Transition: "lemma fixes a :: real shows "a ^ 2 + 2 * a + 1 >= 0""
-context (computing)
-Transition: ""
-hammering...
-(true,(some,List(Try this: by (smt (verit) mult_cancel_right2 one_power2 power2_sum power_0 power_commutes zero_le_power2) (236 ms))))
+[info] running RunIsar.Test_Parse 
+Checkpoint 1: Isabelle setup
+Checkpoint 2: Compile ML functions
+Checkpoint 4: Theory management
+File content: theory Test imports Main HOL.HOL HOL.Real Complex_Main  
+ begin
+
+
+
+Checkpoint 6: Starter String
+Checkpoint 8: Figure out imports
+Checkpoint 9: func begintheory
+Checkpoint 9_6: Loading theory
+Checkpoint 10: Loading theory finished
+Checkpoint 11
+Checkpoint 12
+Checkpoint 13: Parse text
+Checkpoint 14
+Checkpoint 15
+Compilation Context: theory Test imports Main HOL.HOL HOL.Real Complex_Main  
+ begin
+
+length of parsed result: 9
+parsed result: List(, lemma fixes x :: int shows "x ^ 3 = x * x * x", proof-, have eq1: "x ^ 2 = x * x", by auto, have eq2: "x ^ 3 = x ^ 2 * x", by auto, show ?thesis, by (simp add: eq1 eq2))
 success
-[success] Total time: 109 s (0:01:49.0), completed Mar 26, 2025, 6:39:39 AM
+[success] Total time: 12 s, completed Mar 26, 2025, 6:40:25 AM

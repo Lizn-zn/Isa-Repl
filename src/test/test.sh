@@ -9,6 +9,7 @@ test_lst=(
     "Test_SmtRepl"
     "Test_Hammer"
     "Test_HammerRepl"
+    "Test_Parse"
 )   
 
 for test in "${test_lst[@]}"; do

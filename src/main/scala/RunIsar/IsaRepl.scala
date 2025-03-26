@@ -563,7 +563,7 @@ class IsaREPL(
           pretty_local_facts(toplevel, false)
         ).retrieveNow.takeRight(5)
       ) {
-        facts = facts + fact + "<\\PISASEP>"
+        facts = facts + fact + "<\\SEP>"
       }
     }
     facts
@@ -743,20 +743,38 @@ class IsaREPL(
 
   if (debug) println("Checkpoint 14")
 
+  /**
+   * Executes Isabelle proof steps until reaching a specific target step.
+   * This function accumulates proof states by executing transitions one by one until 
+   * it finds the target proof step specified by isar_string.
+   *
+   * @param isar_string The target proof step to reach (as a string)
+   * @return The proof state string before the target step
+   *
+   * The function works recursively by:
+   * 1. Normalizing input strings (removing extra spaces and newlines)
+   * 2. Checking current transition against target
+   * 3. Either returning current state (if target found) or executing more steps
+   */
   def accumulative_step_to_before_transition_starting(
       isar_string: String
   ): String = {
+    // Normalize the target string by removing extra whitespace and newlines
     val sanitised_isar_string =
       isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+    // Get current transition and its text from the stored transitions
     val (transition, text) = transitions_and_texts(frontier_proceeding_index)
     val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
     if (sanitised_text.trim.isEmpty) {
+      // Skip empty transitions and continue recursively
       frontier_proceeding_index += 1
       accumulative_step_to_before_transition_starting(sanitised_isar_string)
     } else if (sanitised_text.trim == sanitised_isar_string) {
+      // Found the target step - return current proof state
       val top_level_proceeding_state = retrieve_tls("default")
       getStateString(top_level_proceeding_state)
     } else {
+      // Haven't found target yet - execute current transition and continue recursively
       frontier_proceeding_index += 1
       val top_level_proceeding_state = retrieve_tls("default")
       val resulting_state: ToplevelState =
@@ -814,6 +832,7 @@ class IsaREPL(
   4. step_without_timeout(): String. Apply a single transition to the current state without timeout.
   5. translate_to_smt(): String. Translate the current state to SMT.  
   6. prove_by_hammer(): (Boolean, String). Apply sledgehammer to the current state.
+  7. parse_to_steps(): String. Parse the current state to a list of steps.
   ================================================================================== */
 
   /*
@@ -883,40 +902,23 @@ class IsaREPL(
     (ok, results)
   }
 
-  // // todo: using java output
-  // // run the theory before proof, and slice the proof
-  // def parse_theory(isar_string: String): String = {
-  //   if (debug) println("Checkpoint 15_2: parse theory")
-  //   var stateString: String = ""
-  //   val steps = new StringBuffer("")
-  //   var compile: Boolean = true
-  //     for (
-  //       (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
-  //     ) {
-  //       if (debug) println("Transition: " + text)
-  //       if (compile) {
-  //         stateString = singleTransition(transition)
-  //       } else {
-  //         steps.append("\x1f" + text)
-  //       }
-  //       if (text == "proof-") compile = false
-  //     }
-  //   steps.toString
-  // }
-
-  // // parse a string into a list of executable commands
-  // // TODO test it!
-  // def parse_to_commands(isar_string: String): List[String] = {
-  //   var commands: List[String] = List()
-  //   for (
-  //     (transition, text) <- parse_text(thy1, isar_string).force.retrieveNow
-  //   ) {
-  //     if (text.trim.nonEmpty) {
-  //       commands = commands :+ text
-  //     }
-  //   }
-  //   commands
-  // }
+  /* 
+  parse a string into a list of executable commands
+  it will not execute the commands, just parse them
+  */
+  def parse_to_steps(isar_string: String): String = {
+    val isar_string_trim = isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+    var steps: String = ""
+    var stateString: String = ""
+    for (
+      (transition, text) <- parse_text(thy1, isar_string_trim).force.retrieveNow
+    ) {
+      if (text.trim.nonEmpty) {
+        steps = steps + "\u001F" + text
+      }
+    }
+    steps
+  }
   
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {

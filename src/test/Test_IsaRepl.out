@@ -12,6 +12,8 @@ WARNING: Restricted methods will be blocked in a future release unless native ac
 [info] loading project definition from /home/lizn/workspace/IsaREPL/project
 [info] loading settings for project isarepl from build.sbt...
 [info] set current project to scala-isabelle (in build file:/home/lizn/workspace/IsaREPL/)
+[info] compiling 1 Scala source to /home/lizn/workspace/IsaREPL/target/scala-2.13/classes ...
+[info] done compiling
 [info] running RunIsar.Test_IsaRepl 
 Checkpoint 1: Isabelle setup
 Checkpoint 2: Compile ML functions
@@ -136,4 +138,4 @@ x ^ 3 = x * x * x
 goal:
 No subgoals!
 success
-[success] Total time: 12 s, completed Mar 25, 2025, 5:08:03 AM
+[success] Total time: 16 s, completed Mar 26, 2025, 6:37:10 AM

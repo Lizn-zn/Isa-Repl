@@ -46,6 +46,10 @@ class IsaReplApplication {
     repl.prove_by_hammer()
   }
 
+  def parse_to_steps(isar_string: String): String = {
+    repl.parse_to_steps(isar_string)
+  }
+
 }
 
 object IsaReplGatewayServer {
