@@ -357,25 +357,39 @@ class IsaREPL(
     total_facts_and_defs_string(tls)
   }
 
-  // /*
-  // Extract the assumptions from the current proof state.
-  // */
-  // def extract_assumptions(tls: ToplevelState): List[String] = {
-  //   val ctxt = Toplevel.context_of tls;
-  //   val facts = Proof_Context.facts_of ctxt;
-  //   val local_facts = Facts.props facts;
-  //   local_facts.map(x => x._1)
-  // }
-  // /*
-  // Extract the proof goal from the current proof state.
-  // */
-  // def extract_goal(tls: ToplevelState): String = {
-  //   val ctxt = Toplevel.context_of tls;
-  //   val goal = Proof.goal ctxt;
-  //   val (_, goal_term) = Subgoal.focus ctxt 1 NONE goal;
-  //   val goal_string = Syntax.string_of_term ctxt goal_term;
-  //   goal_string
-  // }
+  /** Extracts the current assumptions and conclusion from the proof state.
+   *
+   * This function takes a ToplevelState and returns a tuple containing:
+   * - A list of strings representing the current assumptions (local facts)
+   * - A string representing the current proof goal (conclusion)
+   *
+   * The output is formatted as human-readable text, with XML markup removed.
+   */
+  val parse_assms_concl: MLFunction[ToplevelState, (List[String], String)] =
+    compileFunction[ToplevelState, (List[String], String)](
+      """fn (toplevel_state) =>
+        | let
+        |     (* Extract proof state and context *)
+        |     val proof_state = Toplevel.proof_of toplevel_state;
+        |     val proof_context = Proof.context_of proof_state;
+        |     val {context = _, facts = _, goal} = Proof.goal proof_state;
+        |
+        |     (* Helper to clean up XML markup from theorem strings *)
+        |     fun clean_theorem_text (thm_text : string) = 
+        |         XML.content_of (YXML.parse_body thm_text);
+        |
+        |     (* Extract and format conclusion *)
+        |     val conclusion = Syntax.string_of_term proof_context (Thm.concl_of goal);
+        |
+        |     (* Extract and format assumptions *)
+        |     val assumptions = 
+        |         Facts.props (Proof_Context.facts_of proof_context)
+        |         |> map #1
+        |         |> map (Thm.string_of_thm proof_context);
+        | in
+        |     (map clean_theorem_text assumptions, clean_theorem_text conclusion)
+        | end""".stripMargin
+    )
 
   if (debug) println("Checkpoint 4: Theory management")
   val header_read: MLFunction2[String, Position, TheoryHeader] =
@@ -475,7 +489,7 @@ class IsaREPL(
   val SMT_Normalize : String = thy1.importMLStructureNow("SMT_Normalize")
   val SMT_Util : String = thy1.importMLStructureNow("SMT_Util")
   val SMT_Translate : String = thy1.importMLStructureNow("SMT_Translate")
-  val translate_to_smt: MLFunction[ToplevelState, String] =  
+  val parse_to_smt: MLFunction[ToplevelState, String] =  
       compileFunction[ToplevelState, String](  
         s""" fn (state) =>  
             |    let  
@@ -725,17 +739,6 @@ class IsaREPL(
     tls_to_return
   }
 
-  def translate_to_smt_with_timeout(  
-      top_level_state: ToplevelState,  
-      timeout_in_millis: Int = 35000  
-  ): String = {  
-    val f_res: Future[String] = Future.apply {  
-      val result = translate_to_smt(top_level_state).force.retrieveNow 
-      result  
-    }  
-    Await.result(f_res, Duration(timeout_in_millis, "millis"))  
-  }  
-
   def normal_with_hammer(
       top_level_state: ToplevelState,
       added_names: List[String],
@@ -910,15 +913,20 @@ class IsaREPL(
     getStateString
   }
 
-  def translate_to_smt(timeout_in_millis: Int = 35000): String = {  
-    val result = translate_to_smt_with_timeout(toplevel, timeout_in_millis)  
-    result  
-  }  
-
   def prove_by_hammer(timeout_in_millis: Int = 35000): (Boolean, String) = {
     val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
     val results: String = tactic.mkString("<\\SEP>")  
     (ok, results)
+  }
+
+  def translate_to_smt(): String = {  
+    val result = parse_to_smt(toplevel).force.retrieveNow
+    result  
+  }  
+
+  def extract_goal(): (List[String], String) = {
+    val (assms, goal) = parse_assms_concl(toplevel).force.retrieveNow
+    (assms, goal)
   }
 
   /* 

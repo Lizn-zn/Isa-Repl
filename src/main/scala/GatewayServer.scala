@@ -104,6 +104,17 @@ class IsaReplApplication {
     result
   }
 
+  def _extract_goal(): String = {
+    val result = try{
+        val (assms, goal) = repl.extract_goal()
+        "True" + "<\\SEP>" + assms.mkString("<\\SEP>") + "<\\SEP>" + goal
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
 }
 
 object IsaReplGatewayServer {

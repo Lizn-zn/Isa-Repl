@@ -44,7 +44,7 @@ object Test_IsaRepl_Case1 {
     println(result1)
 
     // 3. declare a new lemma
-    val proof_string1 = "have eq1: \"x ^ 2 = x * x\""
+    val proof_string1 = "have eq1: \"x ^ 4 = x * x * x * x\""
     val result2: String = isa_repl.step(proof_string1)
     println(result2)
 
@@ -72,6 +72,10 @@ object Test_IsaRepl_Case1 {
     var proof_string5 = "by (simp add: power2_eq_square)"
     val result6: String = isa_repl.step(proof_string5)
     println(result6)
+
+    val (assms, goal) = isa_repl.extract_goal()
+    println("assumptions: " + assms)
+    println("goal: " + goal)
     
     // 8. close the proof
     val proof_string6 = "show ?thesis by (simp add: numeral_eq_Suc)"
