@@ -356,6 +356,27 @@ class IsaREPL(
     val tls = retrieve_tls(tls_name)
     total_facts_and_defs_string(tls)
   }
+
+  // /*
+  // Extract the assumptions from the current proof state.
+  // */
+  // def extract_assumptions(tls: ToplevelState): List[String] = {
+  //   val ctxt = Toplevel.context_of tls;
+  //   val facts = Proof_Context.facts_of ctxt;
+  //   val local_facts = Facts.props facts;
+  //   local_facts.map(x => x._1)
+  // }
+  // /*
+  // Extract the proof goal from the current proof state.
+  // */
+  // def extract_goal(tls: ToplevelState): String = {
+  //   val ctxt = Toplevel.context_of tls;
+  //   val goal = Proof.goal ctxt;
+  //   val (_, goal_term) = Subgoal.focus ctxt 1 NONE goal;
+  //   val goal_string = Syntax.string_of_term ctxt goal_term;
+  //   goal_string
+  // }
+
   if (debug) println("Checkpoint 4: Theory management")
   val header_read: MLFunction2[String, Position, TheoryHeader] =
     compileFunction[String, Position, TheoryHeader](
@@ -458,39 +479,38 @@ class IsaREPL(
       compileFunction[ToplevelState, String](  
         s""" fn (state) =>  
             |    let  
-            |       val p_state = Toplevel.proof_of state;  
-            |       val thy = Toplevel.theory_of state;
-            |       val ctxt = Proof.context_of p_state;  
+            |       val p_state = Toplevel.proof_of state;
+            |       val ctxt = Proof.context_of p_state;
+            |       val {context = _, facts, goal} = Proof.goal p_state;
+            |       val ({context = ctxt, prems, concl, ...}, _) = Subgoal.focus ctxt 1 NONE goal
             |
-            |       (* Load some lemmas previously. *)  
-            |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
-            |       val ccontr = Proof_Context.get_thm ctxt "ccontr";
-            |  
-            |       (* Extract the assumptions and the conclusion of the theorem. *)  
-            |       val {context = _, facts, goal} = Proof.goal p_state;  
-            |       val assumptions = Assumption.all_prems_of ctxt;  
-            |       val goals = map (Skip_Proof.make_thm thy) (Thm.prems_of goal); 
-            |  
-            |  
-            |       (* Put the assumptions in facts and the conclusion in goal. *)  
-            |       val options = ${SMT_Config}.solver_options_of ctxt;  
-            |       val comments = [space_implode " " options];  
-            |       val has_topsort = Term.exists_type (Term.exists_subtype (fn  
-            |          TFree (_, []) => true  
-            |         | TVar (_, []) => true  
-            |         | _ => false));  
-            |       fun check_topsort ctxt thm =  
-            |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm  
+            |       val facts = Proof_Context.facts_of ctxt;
+            |       val local_facts = map #1 (Facts.props facts);
             |
-            |       val thms0 = facts @ assumptions;  
-            |       val thms = map (pair ${SMT_Util}.Axiom o check_topsort ctxt) thms0; 
+            |       fun negate ct = Thm.dest_comb ct ||> Thm.apply \\<^cterm>\\<open>Not\\<close> |-> Thm.apply;
+            |       val cprop = negate (Thm.rhs_of (SMT_Normalize.atomize_conv ctxt concl));
+            |       val conjecture = Thm.assume cprop;
+            |
+            |       val options = SMT_Config.solver_options_of ctxt;
+            |       val comments = [space_implode " " options];
+            |       val has_topsort = Term.exists_type (Term.exists_subtype (fn
+            |                             TFree (_, []) => true
+            |                           | TVar  (_, []) => true
+            |                           | _ => false));
+            |       fun check_topsort ctxt thm = 
+            |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm;
+            |
+            |       val thms0 = prems @ local_facts;
+            |       val thms = map (pair ${SMT_Util}.Axiom o check_topsort ctxt) thms0;
             |       val assms_thms = (${SMT_Normalize}.normalize ctxt thms);
-            |       
-            |       val thms0 = goals;  
-            |       val thms = map (pair ${SMT_Util}.Conjecture o check_topsort ctxt) thms0; 
+            |
+            |       val thms0 = [conjecture];
+            |       val thms = map (pair ${SMT_Util}.Conjecture o check_topsort ctxt) thms0;
             |       val conc_thms = (${SMT_Normalize}.normalize ctxt thms);
             |
             |       val ithms = assms_thms @ conc_thms;
+            |
+            |       val (str, _) = ${SMT_Translate}.translate ctxt "z3" [] comments ithms;
             |  
             |       fun go_run () = 
             |         let 

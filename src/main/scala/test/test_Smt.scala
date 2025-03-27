@@ -34,7 +34,7 @@ object Test_Smt {
     implicit val isabelle: Isabelle = new Isabelle(setup)
 
     val theorySource = TheoryManager.Text(
-      """ theory Test imports Main HOL.HOL HOL.Real Complex_Main begin lemma fixes a :: real shows "a ^ 2 + 2 * a + 1 >= 0" """,
+      """ theory Test imports Main HOL.HOL HOL.Real Complex_Main begin lemma fixes a :: real assumes ha : "a > 0" shows "a ^ 2 + 2 * a + 1 >= 0" """,
       Paths.get("Test.thy").toAbsolutePath)
     println(theorySource)
 
@@ -76,49 +76,48 @@ object Test_Smt {
       toplevel = command_exception(true, transition, toplevel).retrieveNow.force
     }
 
-    val Skip_Proof : String = thy0.importMLStructureNow("Skip_Proof")
     val SMT_Config : String = thy0.importMLStructureNow("SMT_Config")
     val SMT_Normalize : String = thy0.importMLStructureNow("SMT_Normalize")
     val SMT_Util : String = thy0.importMLStructureNow("SMT_Util")
     val SMT_Translate : String = thy0.importMLStructureNow("SMT_Translate")
     val translate_to_smt: MLFunction[ToplevelState, String] =  
-        compileFunction[ToplevelState, String](  
+      compileFunction[ToplevelState, String](  
         s""" fn (state) =>  
             |    let  
-            |       val p_state = Toplevel.proof_of state;  
-            |       val thy = Toplevel.theory_of state;
-            |       val ctxt = Proof.context_of p_state;  
+            |       val p_state = Toplevel.proof_of state;
+            |       val ctxt = Proof.context_of p_state;
+            |       val {context = _, facts, goal} = Proof.goal p_state;
+            |       val ({context = ctxt, prems, concl, ...}, _) = Subgoal.focus ctxt 1 NONE goal
             |
-            |       (* Load some lemmas previously. *)  
-            |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
-            |       val ccontr = Proof_Context.get_thm ctxt "ccontr";
-            |  
-            |       (* Extract the assumptions and the conclusion of the theorem. *)  
-            |       val {context = _, facts, goal} = Proof.goal p_state;  
-            |       val assumptions = Assumption.all_prems_of ctxt;  
-            |       val goals = map (Skip_Proof.make_thm thy) (Thm.prems_of goal); 
-            |  
-            |  
-            |       (* Put the assumptions in facts and the conclusion in goal. *)  
-            |       val options = ${SMT_Config}.solver_options_of ctxt;  
-            |       val comments = [space_implode " " options];  
-            |       val has_topsort = Term.exists_type (Term.exists_subtype (fn  
-            |          TFree (_, []) => true  
-            |         | TVar (_, []) => true  
-            |         | _ => false));  
-            |       fun check_topsort ctxt thm =  
-            |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm  
-            |
-            |       val thms0 = facts @ assumptions;  
-            |       val thms = map (pair ${SMT_Util}.Axiom o check_topsort ctxt) thms0; 
-            |       val assms_thms = (${SMT_Normalize}.normalize ctxt thms);
+            |       val facts = Proof_Context.facts_of ctxt;
+            |       val local_facts = map #1 (Facts.props facts);
             |       
-            |       val thms0 = goals;  
-            |       val thms = map (pair ${SMT_Util}.Conjecture o check_topsort ctxt) thms0; 
+            |       val not_const = Syntax.read_term ctxt "Not";
+            |       val not_ct = Thm.cterm_of ctxt not_const;
+            |       fun negate ct = Thm.dest_comb ct ||> Thm.apply not_ct |-> Thm.apply;
+            |       val cprop = negate (Thm.rhs_of (${SMT_Normalize}.atomize_conv ctxt concl));
+            |       val conjecture = Thm.assume cprop;
+            |
+            |       val options = ${SMT_Config}.solver_options_of ctxt;
+            |       val comments = [space_implode " " options];
+            |       val has_topsort = Term.exists_type (Term.exists_subtype (fn
+            |                             TFree (_, []) => true
+            |                           | TVar  (_, []) => true
+            |                           | _ => false));
+            |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
+            |       fun check_topsort ctxt thm = 
+            |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm;
+            |
+            |       val thms0 = prems @ local_facts;
+            |       val thms = map (pair ${SMT_Util}.Axiom o check_topsort ctxt) thms0;
+            |       val assms_thms = (${SMT_Normalize}.normalize ctxt thms);
+            |
+            |       val thms0 = [conjecture];
+            |       val thms = map (pair ${SMT_Util}.Conjecture o check_topsort ctxt) thms0;
             |       val conc_thms = (${SMT_Normalize}.normalize ctxt thms);
             |
             |       val ithms = assms_thms @ conc_thms;
-            |  
+            |
             |       fun go_run () = 
             |         let 
             |           val (str, _) = ${SMT_Translate}.translate ctxt "z3" [] comments ithms
@@ -126,8 +125,8 @@ object Test_Smt {
             |           str  end  
             |    in  
             |       Timeout.apply (Time.fromSeconds 180) go_run () end 
-            |""".stripMargin  
-        )  
+          |""".stripMargin  
+      )  
     // Apply transitions to toplevel such that it is at a "hammerable" place
     // Then use sledgehammer to prove the theorem
     println("translating to smt...")
