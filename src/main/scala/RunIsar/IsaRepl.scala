@@ -500,17 +500,20 @@ class IsaREPL(
             |
             |       val facts = Proof_Context.facts_of ctxt;
             |       val local_facts = map #1 (Facts.props facts);
-            |
-            |       fun negate ct = Thm.dest_comb ct ||> Thm.apply \\<^cterm>\\<open>Not\\<close> |-> Thm.apply;
-            |       val cprop = negate (Thm.rhs_of (SMT_Normalize.atomize_conv ctxt concl));
+            |       
+            |       val not_const = Syntax.read_term ctxt "Not";
+            |       val not_ct = Thm.cterm_of ctxt not_const;
+            |       fun negate ct = Thm.dest_comb ct ||> Thm.apply not_ct |-> Thm.apply;
+            |       val cprop = negate (Thm.rhs_of (${SMT_Normalize}.atomize_conv ctxt concl));
             |       val conjecture = Thm.assume cprop;
             |
-            |       val options = SMT_Config.solver_options_of ctxt;
+            |       val options = ${SMT_Config}.solver_options_of ctxt;
             |       val comments = [space_implode " " options];
             |       val has_topsort = Term.exists_type (Term.exists_subtype (fn
             |                             TFree (_, []) => true
             |                           | TVar  (_, []) => true
             |                           | _ => false));
+            |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
             |       fun check_topsort ctxt thm = 
             |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm;
             |
@@ -524,8 +527,6 @@ class IsaREPL(
             |
             |       val ithms = assms_thms @ conc_thms;
             |
-            |       val (str, _) = ${SMT_Translate}.translate ctxt "z3" [] comments ithms;
-            |  
             |       fun go_run () = 
             |         let 
             |           val (str, _) = ${SMT_Translate}.translate ctxt "z3" [] comments ithms
@@ -535,7 +536,7 @@ class IsaREPL(
             |       Timeout.apply (Time.fromSeconds 180) go_run () end 
           |""".stripMargin  
       )  
-
+      
   // setting up Sledgehammer
   // val thy_for_sledgehammer: Theory = Theory("HOL.List")
   val thy_for_sledgehammer = thy1
@@ -565,14 +566,14 @@ class IsaREPL(
             |             val p_state = Toplevel.proof_of state;
             |             val ctxt = Proof.context_of p_state;
             |             val params = ${Sledgehammer_Commands}.default_params thy
-            |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),("timeout","60"),("verbose","true")];
+            |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),("timeout","25"),("verbose","true")];
             |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
             |             val (result, (outcome, step)) = results;
             |           in
             |             (result, (${Sledgehammer}.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
             |           end;
             |    in
-            |      Timeout.apply (Time.fromSeconds 180) go_run (state, thy) end
+            |      Timeout.apply (Time.fromSeconds 35) go_run (state, thy) end
             |""".stripMargin
     )
 
@@ -887,7 +888,7 @@ class IsaREPL(
       throw new Exception("Compilation context is too complex" )
     }
     for (
-      (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
+      (transition, text) <- parse_text(thy1, isar_string).force.retrieveNow
     ) {
       // Avoid too complex context if \n >> 5
       if (text.trim.nonEmpty) {

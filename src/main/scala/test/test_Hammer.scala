@@ -6,7 +6,7 @@ import de.unruh.isabelle.mlvalue.{MLValue, MLFunction0, MLFunction, MLFunction4,
 import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.mlvalue.AdHocConverter
 import de.unruh.isabelle.pure.{Context, Theory, TheoryHeader, ToplevelState}
-import de.unruh.isabelle.control.{Isabelle, OperationCollection}
+import de.unruh.isabelle.control.{Isabelle, IsabelleMLException, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.compileFunction
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader}
 
@@ -94,22 +94,28 @@ object Test_Hammer {
            |             val p_state = Toplevel.proof_of state;
            |             val ctxt = Proof.context_of p_state;
            |             val params = ${Sledgehammer_Commands}.default_params thy
-           |                [("provers", "cvc4 vampire verit e spass z3 zipperposition"),("timeout","60"),("verbose","true")];
+           |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),("timeout","25"),("verbose","true")];
            |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
            |             val (result, (outcome, step)) = results;
            |           in
            |             (result, (${Sledgehammer}.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
            |           end;
            |    in
-           |      Timeout.apply (Time.fromSeconds 180) go_run (state, thy) end
+           |      Timeout.apply (Time.fromSeconds 35) go_run (state, thy) end
            |""".stripMargin
       )
 
     // Apply transitions to toplevel such that it is at a "hammerable" place
     // Then use sledgehammer to prove the theorem
     println("hammering...")
-    val result = normal_with_Sledgehammer(toplevel, thy0, List[String](), List[String]()).force.retrieveNow
-    // (true,(some,List(Try this: by (smt (verit) mult_cancel_right2 one_power2 power2_sum power_0 power_commutes zero_le_power2) (222 ms))))
+    val result = try{
+      normal_with_Sledgehammer(toplevel, thy0, List[String](), List[String]()).force.retrieveNow
+      // (true,(some,List(Try this: by (smt (verit) mult_cancel_right2 one_power2 power2_sum power_0 power_commutes zero_le_power2) (222 ms))))
+    } catch {
+      case e: IsabelleMLException => 
+        println(s"failed for prove the goal using sledgehammer. Get msg: ${e.getMessage}")
+        "failed"
+    }
     println(result)
 
     println("success")

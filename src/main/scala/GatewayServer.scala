@@ -4,6 +4,7 @@ import py4j.GatewayServer
 import RunIsar.IsaREPL
 import de.unruh.isabelle.control.IsabelleMLException
 import java.nio.file.Paths
+import java.util.concurrent.TimeoutException
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
@@ -89,6 +90,8 @@ class IsaReplApplication {
         }
     } catch {
       case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
         "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
     }
     result
