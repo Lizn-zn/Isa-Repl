@@ -15,41 +15,29 @@ export ISA_REPL_PATH=/path/to/Isa-Repl/target/IsaREPL.jar
 
 ## Usage
 
-#### 1. Start the JVM server
 ```python
+# Start the JVM server
 process = subprocess.Popen(["java", "-jar", os.getenv("ISA_REPL_PATH"), 25333])
-```
 
-#### 2. Initialize the REPL
-```python
+# Initialize the REPL
 theory_file = os.path.abspath("python-test/Test.thy")
 isa_repl.initializeRepl(theory_file)
-```
 
-#### 3. Compile the theorem environment
-```python
+# Compile the theorem environment
 isa_repl.compile("theory Test imports Main HOL.HOL HOL.Real Complex_Main")
-```
 
-#### 4. Step the theorem or proof
-```python
+# Step the theorem or proof
 isa_repl.step("lemma fixes x :: int shows \"x ^ 3 = x * x * x\" \n proof- \n")
-isa_repl.step("show ?thesis by (simp add: numeral_eq_Suc)")
-```
+isa_repl.step("show ?thesis by (simp add: numeral_eq_Suc) qed")
 
-#### 5. Call the sledgehammer
-```python
+# Call the sledgehammer
 isa_repl.step("lemma fixes x :: int shows \"x ^ 2 = x * x\" \n proof- \n")
 isa_repl.prove_by_hammer()
-```
 
-#### 6. Apply the SMT translation
-```python
+# Apply the SMT translation
 isa_repl.step("lemma fixes x :: int shows \"x ^ 2 = x * x\" \n proof- \n")
 isa_repl.translate_to_smt()
 ```
-
-
 
 
 ## JAR Compilation
