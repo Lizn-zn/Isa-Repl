@@ -19,7 +19,7 @@ import scala.concurrent.{Future, Await}
 import scala.concurrent.duration.Duration
 
 
-object Test_ExtractGoal {
+object Test_ExtractGoal1 {
 
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
   val isabelleHome_str: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
@@ -36,31 +36,29 @@ object Test_ExtractGoal {
     )
 
     // 1. compile the theory env
-    val result0: String = isa_repl.compile(""" theory Test imports Main HOL.HOL HOL.Real begin""")
+    val result0: String = isa_repl.compile(""" theory Test imports Main HOL.HOL HOL.Real begin """)
     println(result0)
 
     // 2. create the theorem to be proved
     val result1: String = isa_repl.step("""
                                             lemma 
-                                            fixes x :: int 
-                                            shows "x ^ 2 + 2 * x + 1 >= 0" 
+                                            fixes f :: "nat => nat"
+                                            assumes "\<forall>n. f (f n) = n + 1987"
+                                            shows False
                                             proof-
-                                                have "x = x" by simp
-                                                have "x ^ 2 = x * x"
-                                                proof- 
-                                                    have "x ^ 2 = x * x" by (simp add: power2_eq_square)
-                                                    show ?thesis by (simp add: power2_eq_square)
-                                                qed
-                                                have "x ^ 4 = x ^ 2 * x ^ 2" by simp
-                                                show ?thesis 
+                                                have "odd 1987" by simp
                                         """)
     println(result1)
     
     // 3. try "sledgehammer" to prove the lemma
+    val vars : List[String] = isa_repl.extract_vars()
+    val assms : List[String] = isa_repl.extract_assms()
     val goal : String = isa_repl.extract_goal()
     // Try this: using ha hb by auto (4 ms)
+    println(vars)
+    println(assms)
     println(goal)
-    
+
     println("success")
 
   }

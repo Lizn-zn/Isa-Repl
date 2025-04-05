@@ -73,8 +73,7 @@ object Test_IsaRepl_Case1 {
     val result6: String = isa_repl.step(proof_string5)
     println(result6)
 
-    val (assms, goal) = isa_repl.extract_goal()
-    println("assumptions: " + assms)
+    val goal : String = isa_repl.extract_goal()
     println("goal: " + goal)
     
     // 8. close the proof

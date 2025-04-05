@@ -142,7 +142,7 @@ class IsaREPL(
         |  in addtext (Symbol.explode text) transitions end""".stripMargin)
   val toplevel_string_of_state: MLFunction[ToplevelState, String] =
     compileFunction[ToplevelState, String](
-      "fn (s) => YXML.content_of (Toplevel.string_of_state s)"
+      "fn (s) => XML.content_of (YXML.parse_body (Toplevel.string_of_state s))"
     )
   val pretty_local_facts: MLFunction2[ToplevelState, Boolean, List[Pretty.T]] =
     compileFunction[ToplevelState, Boolean, List[Pretty.T]](
@@ -357,7 +357,7 @@ class IsaREPL(
     total_facts_and_defs_string(tls)
   }
 
-  /** Extracts the current assumptions and conclusion from the proof state.
+  /** Extracts the current variables, assumptions and conclusion from the proof state.
    *
    * This function takes a ToplevelState and returns a tuple containing:
    * - A list of strings representing the current assumptions (local facts)
@@ -365,8 +365,77 @@ class IsaREPL(
    *
    * The output is formatted as human-readable text, with XML markup removed.
    */
-  val parse_assms_concl: MLFunction[ToplevelState, (List[String], String)] =
-    compileFunction[ToplevelState, (List[String], String)](
+  val parse_vars:  MLFunction[ToplevelState, List[String]] =
+    compileFunction[ToplevelState, List[String]](
+      """fn (toplevel_state) =>
+        |  let
+        |    val p_state = Toplevel.proof_of toplevel_state;
+        |    val ctxt = Proof.context_of p_state;
+        |    val {context = _, facts, goal} = Proof.goal p_state;
+        |    val prop = Thm.prop_of goal;
+
+        |    fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
+        |    fun ins_entry (x, y) =
+        |      AList.default (op =) (x, []) #>
+        |      AList.map_entry (op =) x (insert (op =) y);
+
+        |    val add_vars = Term.fold_aterms
+        |      (fn Free (x, T) => ins_entry (T, (x, ~1))
+        |       | Var (xi, T) => ins_entry (T, xi)
+        |       | _ => I);
+        |    fun vars_of t = sort_idxs (add_vars t []);
+
+        |    val prt_term =
+        |      singleton (Syntax.uncheck_terms ctxt) #>
+        |      Type_Annotation.ignore_free_types #>
+        |      Syntax.string_of_term ctxt;
+        |    fun prt_var (x, ~1) = prt_term (Syntax.free x)
+        |      | prt_var xi = prt_term (Syntax.var xi);
+        |    val prt_typ = Syntax.string_of_typ ctxt;
+        |    fun prt_var (x, ~1) = prt_term (Syntax.free x)
+        |      | prt_var xi = prt_term (Syntax.var xi);
+        |    fun prt_all (ty, vars) = 
+        |      let
+        |        val ty_str = prt_typ ty; 
+        |        fun print_var (name, idx) =
+        |          prt_var (name, idx) ^ " :: " ^ ty_str 
+        |      in
+        |        map print_var vars 
+        |      end;
+        |    val res = List.concat (map prt_all (vars_of prop));
+        |    fun clean_theorem_text (thm_text : string) = 
+        |          XML.content_of (YXML.parse_body thm_text);
+        |    val res = map clean_theorem_text res;
+        |  in
+        |    res
+        |  end""".stripMargin
+    )
+
+  val parse_assms: MLFunction[ToplevelState, List[String]] =
+    compileFunction[ToplevelState, List[String]](
+      """fn (toplevel_state) =>
+        | let
+        |     (* Extract proof state and context *)
+        |     val proof_state = Toplevel.proof_of toplevel_state;
+        |     val proof_context = Proof.context_of proof_state;
+        |     val {context = _, facts = _, goal} = Proof.goal proof_state;
+        |
+        |     (* Helper to clean up XML markup from theorem strings *)
+        |     fun clean_theorem_text (thm_text : string) = 
+        |         XML.content_of (YXML.parse_body thm_text);
+        |
+        |     (* Extract and format assumptions *)
+        |     val assumptions = 
+        |         Facts.props (Proof_Context.facts_of proof_context)
+        |         |> map #1
+        |         |> map (Thm.string_of_thm proof_context);
+        | in
+        |     map clean_theorem_text assumptions
+        | end""".stripMargin
+    )
+
+  val parse_goal: MLFunction[ToplevelState, String] =
+    compileFunction[ToplevelState, String](
       """fn (toplevel_state) =>
         | let
         |     (* Extract proof state and context *)
@@ -381,13 +450,8 @@ class IsaREPL(
         |     (* Extract and format conclusion *)
         |     val conclusion = Syntax.string_of_term proof_context (Thm.concl_of goal);
         |
-        |     (* Extract and format assumptions *)
-        |     val assumptions = 
-        |         Facts.props (Proof_Context.facts_of proof_context)
-        |         |> map #1
-        |         |> map (Thm.string_of_thm proof_context);
         | in
-        |     (map clean_theorem_text assumptions, clean_theorem_text conclusion)
+        |     clean_theorem_text conclusion
         | end""".stripMargin
     )
 
@@ -925,9 +989,19 @@ class IsaREPL(
     result  
   }  
 
-  def extract_goal(): (List[String], String) = {
-    val (assms, goal) = parse_assms_concl(toplevel).force.retrieveNow
-    (assms, goal)
+  def extract_vars(): List[String] = {
+    val vars = parse_vars(toplevel).force.retrieveNow
+    vars
+  }
+
+  def extract_assms(): List[String] = {
+    val assms = parse_assms(toplevel).force.retrieveNow
+    assms
+  }
+
+  def extract_goal(): String = {
+    val goal = parse_goal(toplevel).force.retrieveNow
+    goal
   }
 
   /* 

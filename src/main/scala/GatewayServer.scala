@@ -107,10 +107,32 @@ class IsaReplApplication {
     result
   }
 
+  def _extract_vars(): String = {
+    val result = try{
+        val vars = repl.extract_vars()
+        "True" + "<\\SEP>" + vars.mkString("<\\SEP>")
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the vars. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _extract_assms(): String = {
+    val result = try{
+        val assms = repl.extract_assms()
+        "True" + "<\\SEP>" + assms.mkString("<\\SEP>")
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the assms. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
   def _extract_goal(): String = {
     val result = try{
-        val (assms, goal) = repl.extract_goal()
-        "True" + "<\\SEP>" + assms.mkString("<\\SEP>") + "<\\SEP>" + goal
+        val goal = repl.extract_goal()
+        "True" + "<\\SEP>" + goal
     } catch {
       case e: IsabelleMLException => 
         "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"

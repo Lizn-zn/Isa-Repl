@@ -19,7 +19,7 @@ import scala.concurrent.{Future, Await}
 import scala.concurrent.duration.Duration
 
 
-object Test_ExtractGoal {
+object Test_ExtractGoal2 {
 
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
   val isabelleHome_str: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
@@ -41,18 +41,9 @@ object Test_ExtractGoal {
 
     // 2. create the theorem to be proved
     val result1: String = isa_repl.step("""
-                                            lemma 
-                                            fixes x :: int 
-                                            shows "x ^ 2 + 2 * x + 1 >= 0" 
-                                            proof-
-                                                have "x = x" by simp
-                                                have "x ^ 2 = x * x"
-                                                proof- 
-                                                    have "x ^ 2 = x * x" by (simp add: power2_eq_square)
-                                                    show ?thesis by (simp add: power2_eq_square)
-                                                qed
-                                                have "x ^ 4 = x ^ 2 * x ^ 2" by simp
-                                                show ?thesis 
+theorem example: "\<not>(\<forall>n::nat. f (f n) \<noteq> n + 1987)"
+proof 
+  assume H: "\<forall>n::nat. f (f n) \<noteq> n + 1987"
                                         """)
     println(result1)
     
