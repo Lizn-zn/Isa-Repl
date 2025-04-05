@@ -442,13 +442,14 @@ class IsaREPL(
         |     val proof_state = Toplevel.proof_of toplevel_state;
         |     val proof_context = Proof.context_of proof_state;
         |     val {context = _, facts = _, goal} = Proof.goal proof_state;
+        |     val ({context = ctxt, prems, concl, ...}, _) = Subgoal.focus proof_context 1 NONE goal
         |
         |     (* Helper to clean up XML markup from theorem strings *)
         |     fun clean_theorem_text (thm_text : string) = 
         |         XML.content_of (YXML.parse_body thm_text);
         |
         |     (* Extract and format conclusion *)
-        |     val conclusion = Syntax.string_of_term proof_context (Thm.concl_of goal);
+        |     val conclusion =  Variable.revert_fixed ctxt (Syntax.string_of_term ctxt (Thm.term_of concl));
         |
         | in
         |     clean_theorem_text conclusion

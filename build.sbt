@@ -84,6 +84,10 @@ libraryDependencies ++= Seq(
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3"
 // libraryDependencies += "org.slf4j" % "slf4j-nop" % "2.0.13"
 
+libraryDependencies ++= Seq(
+  "org.scalatest" %% "scalatest" % "3.2.19" % Test
+)
+
 resolvers ++= Resolver.sonatypeOssRepos("snapshots")
 
 // Configure assembly settings
