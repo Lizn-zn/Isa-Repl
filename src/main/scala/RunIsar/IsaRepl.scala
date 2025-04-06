@@ -442,15 +442,21 @@ class IsaREPL(
         |     val proof_state = Toplevel.proof_of toplevel_state;
         |     val proof_context = Proof.context_of proof_state;
         |     val {context = _, facts = _, goal} = Proof.goal proof_state;
-        |     val ({context = ctxt, prems, concl, ...}, _) = Subgoal.focus proof_context 1 NONE goal
         |
         |     (* Helper to clean up XML markup from theorem strings *)
         |     fun clean_theorem_text (thm_text : string) = 
         |         XML.content_of (YXML.parse_body thm_text);
         |
         |     (* Extract and format conclusion *)
-        |     val conclusion =  Variable.revert_fixed ctxt (Syntax.string_of_term ctxt (Thm.term_of concl));
-        |
+        |     val conclusion = 
+        |       if not (Proof.goal_finished proof_state) then
+        |         let
+        |           val ({context = ctxt, prems = _, concl, ...}, _) = Subgoal.focus proof_context 1 NONE goal
+        |       in
+        |         Variable.revert_fixed ctxt (Syntax.string_of_term ctxt (Thm.term_of concl))
+        |       end
+        |       else
+        |         ""
         | in
         |     clean_theorem_text conclusion
         | end""".stripMargin
@@ -1065,6 +1071,9 @@ class IsaREPL(
 
   def retrieve_tls(tls_name: String): ToplevelState =
     Await.result(_retrieve_tls(tls_name), Duration.Inf)
+
+  def focus_tls(tls_name: String): Unit =
+    toplevel = retrieve_tls(tls_name)
 
   def parse_entire_thy: List[String] =
     parse_text(thy1, fileContent).force.retrieveNow.map(_._2)
