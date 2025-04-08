@@ -6,3 +6,4 @@ target/*
 .vscode/
 .metals/
 /python-test/python-test.iml
+.bsp
