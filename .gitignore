@@ -3,3 +3,6 @@ project/target/*
 target/*
 .idea/
 !target/IsaREPL.jar
+.vscode/
+.metals/
+/python-test/python-test.iml

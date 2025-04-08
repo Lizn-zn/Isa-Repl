@@ -2,46 +2,18 @@ package RunIsar
 
 import java.nio.file.{Path, Paths}
 import scala.collection.JavaConverters._
-
 import util.control.Breaks
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  Future,
-  TimeoutException,
-  blocking
-}
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException, blocking}
 import scala.concurrent.duration.Duration
-import scala.util.{Success, Failure}
+import scala.util.{Failure, Success}
 import sys.process._
 import _root_.java.nio.file.{Files, Path}
 import _root_.java.io.File
-
 import de.unruh.isabelle.control.Isabelle
-import de.unruh.isabelle.mlvalue.{
-  AdHocConverter,
-  MLFunction,
-  MLFunction0,
-  MLFunction2,
-  MLFunction3,
-  MLFunction4,
-  MLValue,
-  MLValueWrapper,
-  Version
-}
-import de.unruh.isabelle.mlvalue.MLValue.{
-  compileFunction,
-  compileFunction0,
-  compileValue
-}
-import de.unruh.isabelle.pure.{
-  Context,
-  Position,
-  Theory,
-  TheoryHeader,
-  ToplevelState
-}
+import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3, MLFunction4, MLValue, MLValueWrapper, Version}
+import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0, compileValue}
+import de.unruh.isabelle.pure.{Context, Position, Theory, TheoryHeader, ToplevelState}
 
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
@@ -57,17 +29,24 @@ object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
 
 class IsaREPL(
-    var path_to_isa_bin: String,
-    var path_to_file: String,
-    var working_directory: String,
-    var debug: Boolean = false
+               var path_to_isa_bin: String,
+               var path_to_file: String,
+               var working_directory: String,
+               var logic: String,
+               var session_roots: List[String],
+               var debug: Boolean = false
 ) {
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
   path_to_file.split("/").last.replace(".thy", "")
   val isabelleHome: Path = Paths.get(path_to_isa_bin)
-  val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = isabelleHome, workingDirectory = Path.of(working_directory))
+  val setup: Isabelle.Setup = Isabelle.Setup(
+    isabelleHome = isabelleHome,
+    workingDirectory = Path.of(working_directory),
+    logic = logic,
+    sessionRoots = session_roots.map(s => Path.of(s)),
+  )
   implicit val isabelle: Isabelle = new Isabelle(setup)
   implicit val ec: ExecutionContext = ExecutionContext.global
   if (debug) println("Checkpoint 2: Compile ML functions")
@@ -1021,6 +1000,10 @@ class IsaREPL(
       }
     }
     steps
+  }
+
+  def get_thm_deps(theorem_name: String): List[String] = {
+    get_dependent_thms(toplevel, theorem_name).force.retrieveNow
   }
   
   // reset isabelle and thy to be proved

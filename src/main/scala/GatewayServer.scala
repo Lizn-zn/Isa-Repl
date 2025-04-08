@@ -3,8 +3,13 @@ package org.isarepl
 import py4j.GatewayServer
 import RunIsar.IsaREPL
 import de.unruh.isabelle.control.IsabelleMLException
+
 import java.nio.file.Paths
+import java.util
 import java.util.concurrent.TimeoutException
+
+import scala.jdk.CollectionConverters._
+
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
@@ -12,11 +17,13 @@ class IsaReplApplication {
   
   private var repl: IsaREPL = _
   
-  def _initializeRepl(pathToFile: String): Unit = {
+  def _initializeRepl(pathToFile: String, logic: String, sessionRoots: util.ArrayList[String]): Unit = {
     repl = new IsaREPL(
       path_to_isa_bin = isabelleHome,
       path_to_file = pathToFile,
-      working_directory = workingDirectory
+      working_directory = workingDirectory,
+      logic = logic,
+      session_roots = sessionRoots.asScala.toList,
     )
   }
   
@@ -138,6 +145,10 @@ class IsaReplApplication {
         "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
     }
     result
+  }
+
+  def _extract_thm_deps(isarString: String): List[String] = {
+    repl.get_thm_deps(isarString)
   }
 
 }
