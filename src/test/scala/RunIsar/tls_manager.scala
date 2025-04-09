@@ -22,25 +22,15 @@ class TlsManagerTests extends AnyFunSuite {
   // test 1
   val result0: String = isa_repl.compile(""" theory Test imports Main HOL.HOL HOL.Real begin""")
 
-  // test("Temp") {
-  //   isa_repl.step("lemma fixes x :: int shows \"x ^ 3 = x * x * x\" proof- \n")
-  //   val goal = isa_repl.extract_goal()
-  //   println("goal: " + goal)
-  //   isa_repl.step("show ?thesis by (simp add: numeral_eq_Suc)")
-  //   val goal1 = isa_repl.extract_goal()
-  // }
-
   test("Clone the TLS") {
     isa_repl.step("lemma fixes x :: int shows \"x ^ 3 = x * x * x\" proof- \n")
     val goal = isa_repl.extract_goal()
-    println("goal: " + goal)
     isa_repl.clone_tls("test")
     isa_repl.step("show ?thesis by (simp add: numeral_eq_Suc)")
     val goal1 = isa_repl.extract_goal()
     assert(goal1 == "")
     isa_repl.focus_tls("test")
     val goal2 = isa_repl.extract_goal()
-    println("goal2: " + goal2)
     assert(goal == goal2)
   }
 

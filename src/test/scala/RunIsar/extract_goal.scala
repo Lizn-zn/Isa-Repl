@@ -71,6 +71,20 @@ class ExtractGoalTests extends AnyFunSuite {
       qed
       """)
   }
- 
+
+  // test 4
+  test("check no_subgoals") {
+    isa_repl.step("""
+      theorem example4: "False"
+        proof-
+           show ?thesis
+      """)
+    val result1 = isa_repl.subgoal_finished()
+    assert(result1 == false)
+    isa_repl.step("sorry")
+    val result2 = isa_repl.subgoal_finished()
+    assert(result2 == true)
+    isa_repl.step("qed")
+  }
 
 }

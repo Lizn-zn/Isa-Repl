@@ -140,6 +140,40 @@ class IsaReplApplication {
     result
   }
 
+  def _clone_tls(tls_name: String): String = {
+    val result = try{
+        repl.clone_tls(tls_name)
+        "True"
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _focus_tls(tls_name: String): String = {
+    val result = try{
+        repl.focus_tls(tls_name)
+        "True"
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _subgoal_finished(): String = {
+    val result = try{
+        val res = repl.subgoal_finished()
+        res.toString + "<\\SEP>" + "no additional messages"
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for check if the subgoal is finished. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+  
+
 }
 
 object IsaReplGatewayServer {

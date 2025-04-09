@@ -372,40 +372,56 @@ class IsaREPL(
         |    val p_state = Toplevel.proof_of toplevel_state;
         |    val ctxt = Proof.context_of p_state;
         |    val {context = _, facts, goal} = Proof.goal p_state;
-        |    val prop = Thm.prop_of goal;
-
-        |    fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
-        |    fun ins_entry (x, y) =
-        |      AList.default (op =) (x, []) #>
-        |      AList.map_entry (op =) x (insert (op =) y);
-
-        |    val add_vars = Term.fold_aterms
-        |      (fn Free (x, T) => ins_entry (T, (x, ~1))
-        |       | Var (xi, T) => ins_entry (T, xi)
-        |       | _ => I);
-        |    fun vars_of t = sort_idxs (add_vars t []);
-
-        |    val prt_term =
-        |      singleton (Syntax.uncheck_terms ctxt) #>
-        |      Type_Annotation.ignore_free_types #>
-        |      Syntax.string_of_term ctxt;
-        |    fun prt_var (x, ~1) = prt_term (Syntax.free x)
-        |      | prt_var xi = prt_term (Syntax.var xi);
-        |    val prt_typ = Syntax.string_of_typ ctxt;
-        |    fun prt_var (x, ~1) = prt_term (Syntax.free x)
-        |      | prt_var xi = prt_term (Syntax.var xi);
-        |    fun prt_all (ty, vars) = 
-        |      let
-        |        val ty_str = prt_typ ty; 
-        |        fun print_var (name, idx) =
-        |          prt_var (name, idx) ^ " :: " ^ ty_str 
-        |      in
-        |        map print_var vars 
-        |      end;
-        |    val res = List.concat (map prt_all (vars_of prop));
-        |    fun clean_theorem_text (thm_text : string) = 
-        |          XML.content_of (YXML.parse_body thm_text);
-        |    val res = map clean_theorem_text res;
+        |  
+        |  (* Get all assumptions from the context *)
+        |  val assumptions = Facts.props (Proof_Context.facts_of ctxt) |> map #1;
+        |  val props = map Thm.prop_of assumptions;
+        |  
+        |  (* Helper functions for variable processing *)
+        |  fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
+        |  
+        |  fun ins_entry (x, y) = 
+        |    AList.default (op =) (x, []) #> AList.map_entry (op =) x (insert (op =) y);
+        |  
+        |  (* Collect variables from terms *)
+        |  val add_vars = Term.fold_aterms 
+        |    (fn Free (x, T) => ins_entry (T, (x, ~1))
+        |     | Var (xi, T) => ins_entry (T, xi)
+        |     | _ => I);
+        |  
+        |  fun vars_of t = sort_idxs (add_vars t []);
+        |  
+        |  (* Pretty-printing functions *)
+        |  val prt_term = singleton (Syntax.uncheck_terms ctxt) 
+        |    #> Type_Annotation.ignore_free_types 
+        |    #> Syntax.string_of_term ctxt;
+        |  
+        |  fun prt_var (x, ~1) = prt_term (Syntax.free x)
+        |    | prt_var xi = prt_term (Syntax.var xi);
+        |  
+        |  val prt_typ = Syntax.string_of_typ ctxt;
+        |  
+        |  (* Format variable declarations *)
+        |  fun prt_all (ty, vars) = 
+        |    let
+        |      val ty_str = prt_typ ty;
+        |      fun print_var (name, idx) = prt_var (name, idx) ^ " :: " ^ ty_str
+        |    in 
+        |      map print_var vars 
+        |    end;
+        |  
+        |  (* Process all propositions to extract variables *)
+        |  val all_vars = maps vars_of props;
+        |  val var_decls = maps prt_all all_vars;
+        |  
+        |  (* Clean theorem text by parsing YXML content *)
+        |  fun clean_theorem_text (thm_text : string) = 
+        |    XML.content_of (YXML.parse_body thm_text);
+        |  
+        |  (* Final result with duplicates removed *)
+        |  val res = var_decls 
+        |    |> map clean_theorem_text
+        |    |> distinct (op =);
         |  in
         |    res
         |  end""".stripMargin
@@ -418,7 +434,6 @@ class IsaREPL(
         |     (* Extract proof state and context *)
         |     val proof_state = Toplevel.proof_of toplevel_state;
         |     val proof_context = Proof.context_of proof_state;
-        |     val {context = _, facts = _, goal} = Proof.goal proof_state;
         |
         |     (* Helper to clean up XML markup from theorem strings *)
         |     fun clean_theorem_text (thm_text : string) = 
@@ -459,6 +474,19 @@ class IsaREPL(
         |         ""
         | in
         |     clean_theorem_text conclusion
+        | end""".stripMargin
+    )
+
+  // check if the sub-proof is finished; if it is, then we can successfully retrieve it by `this`, and thus return true; otherwise, return false
+  val check_no_subgoals: MLFunction[ToplevelState, Boolean] =
+    compileFunction[ToplevelState, Boolean](
+      """fn (toplevel_state) =>
+        | let
+        |   val proof_state = Toplevel.proof_of toplevel_state;
+        |   val proof_context = Proof.context_of proof_state;
+        |   val result = can (Proof_Context.get_fact proof_context) (Facts.named "this");
+        | in
+        |   result
         | end""".stripMargin
     )
 
@@ -928,6 +956,7 @@ class IsaREPL(
   5. translate_to_smt(): String. Translate the current state to SMT.  
   6. prove_by_hammer(): (Boolean, String). Apply sledgehammer to the current state.
   7. parse_to_steps(): String. Parse the current state to a list of steps.
+  8. tls pending...
   ================================================================================== */
 
   /*
@@ -1009,6 +1038,11 @@ class IsaREPL(
   def extract_goal(): String = {
     val goal = parse_goal(toplevel).force.retrieveNow
     goal
+  }
+
+  def subgoal_finished(): Boolean = {
+    val subgoal_finished = check_no_subgoals(toplevel).force.retrieveNow
+    subgoal_finished
   }
 
   /* 
