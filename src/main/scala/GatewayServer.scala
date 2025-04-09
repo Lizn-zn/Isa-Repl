@@ -152,7 +152,7 @@ class IsaReplApplication {
   }
 
   def _focus_tls(tls_name: String): String = {
-    val result = try{
+    val result = try {
         repl.focus_tls(tls_name)
         "True"
     } catch {
@@ -163,9 +163,13 @@ class IsaReplApplication {
   }
 
   def _subgoal_finished(): String = {
-    val result = try{
+    val result = try {
         val res = repl.subgoal_finished()
-        res.toString + "<\\SEP>" + "no additional messages"
+        if (res == true) {
+          "True" + "<\\SEP>" + "no additional messages"
+        } else {
+          "False" + "<\\SEP>" + "no additional messages"
+        }
     } catch {
       case e: IsabelleMLException => 
         "False" + "<\\SEP>" + s"failed for check if the subgoal is finished. Get msg: ${e.getMessage}"
