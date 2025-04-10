@@ -73,7 +73,7 @@ class ExtractGoalTests extends AnyFunSuite {
   }
 
   // test 4
-  test("check no_subgoals") {
+  test("check no_subgoals No.1") {
     isa_repl.step("""
       theorem example4: "False"
         proof-
@@ -87,4 +87,48 @@ class ExtractGoalTests extends AnyFunSuite {
     isa_repl.step("qed")
   }
 
+  // test 5
+  test("check no_subgoals No.2") {
+    isa_repl.step("""
+      theorem example5: "\<not>(\<forall>(n::nat). f (f n) = n + 1987)"
+        proof
+          assume A: "\<forall> n. f (f n) = n + 1987"
+          have inj_f: "inj f"
+          proof (rule inj_onI)
+            fix m n
+            assume "f m = f n"
+            have "f (f m) = f (f n)"
+              using \<open>f m = f n\<close> by force
+            from A
+            have "f (f m) = m + 1987" and "f (f n) = n + 1987"
+              by auto
+      """)
+    val result = isa_repl.subgoal_finished()
+    assert(result == true)
+    isa_repl.step("""
+        show "m = n" 
+          sorry
+      qed
+      show False
+        sorry
+      qed
+      """)
+  }
+
+  test("extract extential goal from Isabelle proof") {
+    isa_repl.step("""
+    lemma 
+    assumes "\<exists>x y. P x \<and> Q y \<and> R x y"
+    shows "\<exists>u v. P u \<and> Q v"
+      proof -
+        from assms obtain x y where "P x" "Q y" "R x y"
+      """)
+    val result = isa_repl.extract_goal()
+    assert(result == "thesis")
+    isa_repl.step("""
+      by auto
+      thus ?thesis by blast
+      qed
+      """)
+  }
 }

@@ -12,7 +12,7 @@ scalaVersion := "2.13.14"
 
 // It's possible to define many kinds of settings, such as:
 
-name := "scala-isabelle"
+name := "Isa-Repl"
 organization := "ch.epfl.scala"
 version := "1.0"
 
