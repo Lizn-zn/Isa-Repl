@@ -19,6 +19,13 @@ class IsaReplApplication {
       working_directory = workingDirectory
     )
   }
+
+  def _resetRepl(pathToFile: String): Unit = {
+    val msg = repl.reset_isabelle(pathToFile)
+    if (msg != "Reset") {
+      _initializeRepl(pathToFile)
+    }
+  }
   
   def _compile(): String = {
     val result = try{

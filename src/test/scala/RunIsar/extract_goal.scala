@@ -115,4 +115,20 @@ class ExtractGoalTests extends AnyFunSuite {
       """)
   }
 
+  test("extract extential goal from Isabelle proof") {
+    isa_repl.step("""
+    lemma 
+    assumes "\<exists>x y. P x \<and> Q y \<and> R x y"
+    shows "\<exists>u v. P u \<and> Q v"
+      proof -
+        from assms obtain x y where "P x" "Q y" "R x y"
+      """)
+    val result = isa_repl.extract_goal()
+    assert(result == "thesis")
+    isa_repl.step("""
+      by auto
+      thus ?thesis by blast
+      qed
+      """)
+  }
 }
