@@ -1,7 +1,8 @@
 (*  Title:      Auto_Isabelle.ML
-    Author:     Zenan Li
+    Modified by Zenan Li.
 
 Try a combination of proof methods. Tweak from the try0.ML.
+In Scala env, timeout mechanism is not working.
 *)
 
 structure Auto_Isabelle : sig
@@ -26,30 +27,24 @@ fun parse_method ctxt s =
   |> Scan.read Token.stopper Method.parse
   |> (fn SOME (Method.Source src, _) => src | _ => raise Fail "expected Source")
 
-fun run_tac timeout_opt tac st =
-  let val with_timeout =
-    (case timeout_opt of SOME timeout => Timeout.apply_physical timeout | NONE => I)
-  in with_timeout (Seq.pull o tac) st |> Option.map fst end
-
-fun apply_recursive recurse elapsed0 timeout_opt apply st =
-  (case Timing.timing (Option.join o try (run_tac timeout_opt apply)) st of
-    ({elapsed, ...}, SOME st') =>
-      if recurse andalso num_goals st' > 0 andalso num_goals st' < num_goals st then
-        let val timeout_opt1 = (Option.map (fn timeout => timeout - elapsed) timeout_opt)
-        in apply_recursive recurse (elapsed0 + elapsed) timeout_opt1 apply st' end
-      else (elapsed0 + elapsed, st')
-   |_ => (elapsed0, st))
+fun simple_apply tac st =
+  let
+    val result = try (fn () => Seq.pull (tac st)) ()
+  in
+    case Option.join result of
+        SOME (st', _) => (Time.zeroTime, st')
+      | NONE => (Time.zeroTime, st)
+  end
 
 fun antiquot s = "\\" ^ "<open>" ^ s ^ "\\" ^ "<close>";
 
 type result = {name: string, command: string, time: int, state: Proof.state}
 
-fun apply_named_method name timeout_opt st =
+fun apply_named_method name _ st =
     let
       val ctxt = Proof.context_of st;
       val local_facts = Facts.props (Proof_Context.facts_of ctxt) |> map #1 |> take 10; 
       val attrs =  "";
-      val multiple_goals = false;
       val text =
         name ^ attrs
         |> parse_method ctxt
@@ -60,7 +55,7 @@ fun apply_named_method name timeout_opt st =
         Proof.using [local_facts |> map (rpair [] o single)]
         #> Proof.refine text #> Seq.filter_results;
 
-      val (time, st') = apply_recursive multiple_goals Time.zeroTime timeout_opt apply st;
+      val (time, st') = simple_apply apply st;
       val num_after = num_goals st';
       val command =
         (if null local_facts then "" 
@@ -79,7 +74,7 @@ fun apply_named_method name timeout_opt st =
 fun try_close st =
   let
     val apply_methods = map apply_named_method named_methods; 
-    val default_timeout = (SOME (seconds 5.0))
+    val default_timeout = (SOME (seconds 0.0))
     val results =
         map (fn method =>
           case method default_timeout st of

@@ -686,16 +686,12 @@ class IsaREPL(
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
-        |    let
-        |      fun go_run (state) = 
         |        let
         |          val proof_state = Toplevel.proof_of state;
         |          val (success, method, step) = ${Auto_Isabelle}.try_close proof_state;
         |        in
         |          (success, method, ${Auto_Isabelle}.clean_theorem_text step)
-        |        end;
-        |    in
-        |      Timeout.apply (Time.fromSeconds 5) go_run state end
+        |        end
         |""".stripMargin
     )
 
@@ -884,7 +880,7 @@ class IsaREPL(
 
   def normal_with_try0(
       top_level_state: ToplevelState,
-      timeout_in_millis: Int = 60000 // 60 seconds
+      timeout_in_millis: Int = 10000 // 10 seconds
   ): (Boolean, String) = {
     val f_res: Future[(Boolean, String)] = Future.apply {
       val first_result = normal_with_try0(top_level_state).force.retrieveNow
@@ -1057,7 +1053,7 @@ class IsaREPL(
     (ok, results)
   }
 
-  def try_close(timeout_in_millis: Int = 60000): (Boolean, String) = {
+  def try_close(timeout_in_millis: Int = 10000): (Boolean, String) = {
     val (ok, result) = normal_with_try0(toplevel, timeout_in_millis)
     (ok, result)
   }

@@ -123,6 +123,8 @@ class IsaReplApplication {
     } catch {
       case e: IsabelleMLException => 
         "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
     }
     result
   }
