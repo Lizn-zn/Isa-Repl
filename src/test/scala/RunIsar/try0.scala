@@ -18,13 +18,27 @@ class TryCloseTests extends AnyFunSuite {
     debug = false
   )
 
+  // Ensure cleanup after tests
+  override def withFixture(test: NoArgTest) = {
+    try {
+      test()
+    } finally {
+      try {
+        isa_repl.exit_isabelle()
+      } catch {
+        case e: Exception => 
+          println(s"Error during cleanup: ${e.getMessage}")
+      }
+    }
+  }
+
   // 1. compile the theory env
   val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
 
   // test 1
-  test("Hammer Complex No.1 from Isabelle proof") {
+  test("try 0 No.1 from Isabelle proof") {
     // create the theorem to be proved
-  isa_repl.step("""
+    isa_repl.step("""
                   lemma Node_7 : 
                   fixes e :: "complex" 
                   and r :: "complex" 

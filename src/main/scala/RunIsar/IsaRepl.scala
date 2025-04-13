@@ -15,7 +15,7 @@ import scala.concurrent.{
 import scala.concurrent.duration.Duration
 import scala.util.{Success, Failure}
 import sys.process._
-import _root_.java.nio.file.{Files, Path}
+import _root_.java.nio.file.{Files, Path, StandardCopyOption}
 import _root_.java.io.File
 
 import de.unruh.isabelle.control.Isabelle
@@ -45,6 +45,7 @@ import de.unruh.isabelle.pure.{
 
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
+import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
@@ -72,7 +73,10 @@ class IsaREPL(
   implicit val ec: ExecutionContext = ExecutionContext.global
   if (debug) println("Checkpoint 2: Compile ML functions")
   // Load Auto_Isabelle theory from the correct path
-  val autoIsaPath = Paths.get("src/main/isabelle/AutoIsar/Auto_Isabelle.thy").toAbsolutePath
+  val tempDir = createTempDir("isar_temp")
+  copyResources("RunIsar/isabelle/AutoIsar", tempDir)
+  val autoIsaPath_tmp = new File(tempDir, "Auto_Isabelle.thy").getAbsolutePath
+  val autoIsaPath = Paths.get(autoIsaPath_tmp)
   val thy0 = Theory(autoIsaPath)
   val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
   // Compile useful ML functions
@@ -1048,7 +1052,6 @@ class IsaREPL(
 
   def try_close(): (Boolean, String) = {
     val first_result = normal_with_try0(toplevel).force.retrieveNow
-    println(s"first_result: ${first_result}")
     (first_result._1, first_result._3)
   }
 
@@ -1108,6 +1111,9 @@ class IsaREPL(
   }
 
   def exit_isabelle(): String = {
+      // remove temp directory
+      cleanupAll()
+      // exit isabelle
       isabelle.destroy()
       "Destroyed"
   }
