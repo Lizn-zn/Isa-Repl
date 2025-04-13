@@ -18,22 +18,8 @@ class TryCloseTests extends AnyFunSuite {
     debug = false
   )
 
-  // Ensure cleanup after tests
-  override def withFixture(test: NoArgTest) = {
-    try {
-      test()
-    } finally {
-      try {
-        isa_repl.exit_isabelle()
-      } catch {
-        case e: Exception => 
-          println(s"Error during cleanup: ${e.getMessage}")
-      }
-    }
-  }
-
   // 1. compile the theory env
-  val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
+  val result0: String = isa_repl.compile(""" theory test imports Complex_Main "HOL-Computational_Algebra.Computational_Algebra" "HOL-Number_Theory.Number_Theory" begin """)
 
   // test 1
   test("try 0 No.1 from Isabelle proof") {
@@ -55,6 +41,47 @@ class TryCloseTests extends AnyFunSuite {
     val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
     println(proof_string)
     val res: String = isa_repl.step(proof_string)
+    assert(res == "")
+  }
+
+  // test 1
+  test("try 0 No.2 from Isabelle proof") {
+    // create the theorem to be proved
+    isa_repl.step("""
+        theorem fixes n k :: nat assumes "n / k < 6" and "5 < n / k" shows "22 \<le> (lcm n k) / (gcd n k)"
+          proof -
+            have "k \<noteq> 0"
+              proof
+                assume "k = 0"
+                have "(of_nat n) / (of_nat k) = 0"
+                  using \<open>k = 0\<close> \<open>5 < real n / real k\<close> \<open>real n / real k < 6\<close> by simp
+                show False
+                  using \<open>k = 0\<close> \<open>of_nat n / of_nat k = 0\<close> \<open>5 < real n / real k\<close> \<open>real n / real k < 6\<close> by simp
+                qed
+            have k_pos: "k > 0"
+              using \<open>k \<noteq> 0\<close> by force
+            have "n \<noteq> 0"
+              proof
+                assume "n = 0"
+                have "(of_nat n) / (of_nat k) = 0"
+                  using \<open>n = 0\<close> sorry
+                show False
+                  sorry
+                qed
+            have n_pos: "n > 0"
+              using \<open>n \<noteq> 0\<close> by force
+            obtain d a b where d_def: "d = gcd n k" and n_fact: "n = d * a" and k_fact: "k = d * b" and coprime: "gcd a b = 1"
+              using n_pos k_pos 
+                """)
+          
+    val (ok, result) = try {
+      isa_repl.try_close()
+    } catch {
+      case e: Exception =>
+        (false, "")
+    }
+    assert(ok == false)
+    val res: String = isa_repl.step("oops")
     assert(res == "")
   }
 }

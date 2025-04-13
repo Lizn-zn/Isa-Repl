@@ -13,12 +13,11 @@ end = struct
 fun clean_theorem_text (thm_text : string) = 
           XML.content_of (YXML.parse_body thm_text);
 
-val num_goals = Thm.nprems_of o #goal o Proof.goal
-val timeout = (SOME (seconds 5.0))
+val num_goals = Thm.nprems_of o #goal o Proof.goal;
 
 val named_methods =
-  ["simp", "auto", "blast", "metis", "argo", "linarith", "presburger",
-   "algebra", "fast", "fastforce", "force", "meson", "satx", "order"]
+  ["simp", "auto", "blast", "argo", "linarith", "presburger",
+   "algebra", "fast", "fastforce", "force", "meson", "satx", "order"];
 
 fun parse_method ctxt s =
   enclose "(" ")" s
@@ -47,10 +46,10 @@ type result = {name: string, command: string, time: int, state: Proof.state}
 
 fun apply_named_method name timeout_opt st =
     let
-      val ctxt = Proof.context_of st
+      val ctxt = Proof.context_of st;
       val local_facts = Facts.props (Proof_Context.facts_of ctxt) |> map #1 |> take 10; 
-      val attrs =  ""
-      val multiple_goals = false
+      val attrs =  "";
+      val multiple_goals = false;
       val text =
         name ^ attrs
         |> parse_method ctxt
@@ -59,10 +58,10 @@ fun apply_named_method name timeout_opt st =
         |> (fn m => Method.Combinator (Method.no_combinator_info, Method.Select_Goals 1, [m]));
       val apply =
         Proof.using [local_facts |> map (rpair [] o single)]
-        #> Proof.refine text #> Seq.filter_results
+        #> Proof.refine text #> Seq.filter_results;
 
-      val (time, st') = apply_recursive multiple_goals Time.zeroTime timeout_opt apply st
-      val num_after = num_goals st'
+      val (time, st') = apply_recursive multiple_goals Time.zeroTime timeout_opt apply st;
+      val num_after = num_goals st';
       val command =
         (if null local_facts then "" 
             else "using " ^ space_implode " " 
@@ -79,36 +78,36 @@ fun apply_named_method name timeout_opt st =
 
 fun try_close st =
   let
-      val apply_methods = map apply_named_method named_methods; 
-      val results =
+    val apply_methods = map apply_named_method named_methods; 
+    val default_timeout = (SOME (seconds 5.0))
+    val results =
         map (fn method =>
-          case method timeout st of
+          case method default_timeout st of
            SOME {command, name, time, ...} => SOME {command = command, name = name, time = time}
            | NONE => NONE 
         ) apply_methods
         |> List.mapPartial I 
-  
-        val (success, method, step) =
-    case results of
-      [] => (false, "All Failed", "")
-    | results as {name, command, ...} :: _ =>
-      let
-        val method_times =
-          results
-          |> map (fn {name, time, ...} => (time, name))
-          |> AList.coalesce (op =)
-          |> map (swap o apsnd commas);
-        val first_method_time = 
-          case method_times of
-             [] => ""
-            | (_, t) :: _ => " (" ^ string_of_int t ^ " ms" ^ ")";
-        val step =
-          "Try this" ^ ": " ^
-          Active.sendback_markup_command command ^
-          first_method_time
-      in
-        (true, name, step)
-      end 
+    val (success, method, step) =
+      case results of
+        [] => (false, "All Failed", "")
+      | results as {name, command, ...} :: _ =>
+        let
+          val method_times =
+            results
+            |> map (fn {name, time, ...} => (time, name))
+            |> AList.coalesce (op =)
+            |> map (swap o apsnd commas);
+          val first_method_time = 
+            case method_times of
+              [] => ""
+              | (_, t) :: _ => " (" ^ string_of_int t ^ " ms" ^ ")";
+          val step =
+            "Try this" ^ ": " ^
+            Active.sendback_markup_command command ^
+            first_method_time
+        in
+          (true, name, step)
+        end 
    in
      (success, method, step)
 end

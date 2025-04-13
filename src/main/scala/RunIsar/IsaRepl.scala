@@ -687,14 +687,16 @@ class IsaREPL(
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
         |    let
-        |      (* Extract proof state and context *)
-        |      val proof_state = Toplevel.proof_of state;
-        |      val proof_context = Proof.context_of proof_state;
-        |      val (success, method, step) = ${Auto_Isabelle}.try_close proof_state;
-        |      (* Helper to clean up XML markup from theorem strings *)
+        |      fun go_run (state) = 
+        |        let
+        |          val proof_state = Toplevel.proof_of state;
+        |          val (success, method, step) = ${Auto_Isabelle}.try_close proof_state;
+        |        in
+        |          (success, method, ${Auto_Isabelle}.clean_theorem_text step)
+        |        end;
         |    in
-        |      (success, method, ${Auto_Isabelle}.clean_theorem_text step)
-        |    end""".stripMargin
+        |      Timeout.apply (Time.fromSeconds 5) go_run state end
+        |""".stripMargin
     )
 
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
@@ -864,27 +866,32 @@ class IsaREPL(
       top_level_state: ToplevelState,
       added_names: List[String],
       deleted_names: List[String],
-      timeout_in_millis: Int = 35000
+      timeout_in_millis: Int = 300000 // 300 seconds
   ): (Boolean, List[String]) = {
     if (debug) println("Checkpoint Hammer1: Begin normal_with_hammer")
-    // val f_res: Future[(Boolean, List[String])] = Future.apply {
-      // val first_result = normal_with_Sledgehammer(
-        // top_level_state,
-        // thy1,
-        // added_names,
-        // deleted_names
-      // ).force.retrieveNow
-      // (first_result._1, first_result._2._2)
-    // }
-    // if (debug) println("Checkpoint Hammer2: Finish & Await result")
-    // Await.result(f_res, Duration(timeout_in_millis, "millis"))
-    val first_result = normal_with_Sledgehammer(
-      top_level_state,
-      thy1,
-      added_names,
-      deleted_names
-    ).force.retrieveNow
-    (first_result._1, first_result._2._2)
+    val f_res: Future[(Boolean, List[String])] = Future.apply {
+      val first_result = normal_with_Sledgehammer(
+        top_level_state,
+        thy1,
+        added_names,
+        deleted_names
+      ).force.retrieveNow
+      (first_result._1, first_result._2._2)
+    }
+    if (debug) println("Checkpoint Hammer2: Finish & Await result")
+    Await.result(f_res, Duration(timeout_in_millis, "millis"))
+  }
+
+  def normal_with_try0(
+      top_level_state: ToplevelState,
+      timeout_in_millis: Int = 60000 // 60 seconds
+  ): (Boolean, String) = {
+    val f_res: Future[(Boolean, String)] = Future.apply {
+      val first_result = normal_with_try0(top_level_state).force.retrieveNow
+      (first_result._1, first_result._3)
+    }
+    if (debug) println("Checkpoint Try0: Finish & Await result")
+    Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
   if (debug) println("Checkpoint 13: Parse text")
@@ -1044,15 +1051,15 @@ class IsaREPL(
     getStateString
   }
 
-  def prove_by_hammer(timeout_in_millis: Int = 35000): (Boolean, String) = {
+  def prove_by_hammer(timeout_in_millis: Int = 300000): (Boolean, String) = {
     val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
     val results: String = tactic.mkString("<\\SEP>")  
     (ok, results)
   }
 
-  def try_close(): (Boolean, String) = {
-    val first_result = normal_with_try0(toplevel).force.retrieveNow
-    (first_result._1, first_result._3)
+  def try_close(timeout_in_millis: Int = 60000): (Boolean, String) = {
+    val (ok, result) = normal_with_try0(toplevel, timeout_in_millis)
+    (ok, result)
   }
 
   def translate_to_smt(): String = {  
