@@ -13,11 +13,11 @@ import scala.jdk.CollectionConverters._
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
-  val workingDirectory: String = Paths.get(isabelleHome, "./src/HOL").toAbsolutePath.toString
+  // val workingDirectory: String = Paths.get(isabelleHome, "./src/HOL").toAbsolutePath.toString
   
   private var repl: IsaREPL = _
   
-  def _initializeRepl(pathToFile: String, logic: String, sessionRoots: util.ArrayList[String]): Unit = {
+  def _initializeRepl(pathToFile: String, logic: String, sessionRoots: util.ArrayList[String], workingDirectory: String): Unit = {
     repl = new IsaREPL(
       path_to_isa_bin = isabelleHome,
       path_to_file = pathToFile,
