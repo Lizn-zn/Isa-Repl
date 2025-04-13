@@ -104,6 +104,16 @@ class IsaReplApplication {
     result
   }
 
+  def _try_close(): String = {
+    val result = try{
+        "True" + "<\\SEP>" + repl.try_close()
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
   def _parse_to_steps(isar_string: String): String = {
     val result = try{
         "True" + "<\\SEP>" + repl.parse_to_steps(isar_string)
