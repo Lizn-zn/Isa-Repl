@@ -441,6 +441,33 @@ class IsaREPL(
       "fn (text,pos) => Thy_Header.read pos text"
     )
 
+  def getHeader(
+                    source: Source
+                )(implicit isabelle: Isabelle, ec: ExecutionContext): TheoryHeader =
+      source match {
+          case Text(text, path, position) =>
+              Ops.header_read(text, position).retrieveNow
+  }
+
+  def beginTheory(
+                      source: Source
+                  )(implicit isabelle: Isabelle, ec: ExecutionContext): Theory = {
+      if (debug) println("Checkpoint 9_1")
+      val header = getHeader(source)
+      if (debug) println("Checkpoint 9_2")
+      val masterDir = source.path
+      if (debug) println("Checkpoint 9_3")
+      val registers: ListBuffer[String] = new ListBuffer[String]()
+      if (debug) println("Checkpoint 9_4")
+      for (theory_name <- header.imports) {
+          if (importMap.contains(theory_name)) {
+              registers += s"${logic}.${importMap(theory_name)}"
+          } else registers += theory_name
+      }
+      if (debug) println("Checkpoint 9_5")
+      Ops
+          .begin_theory(masterDir, header, registers.toList.map(Theory.apply)).force.retrieveNow
+  }
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
   private var fileContent: String = Files.readString(Path.of(path_to_file))
@@ -517,12 +544,14 @@ class IsaREPL(
   var top_level_state_map: Map[String, MLValue[ToplevelState]] = Map()
   if (debug) println("Checkpoint 9: func begintheory")
   val theoryManager: TheoryManager = new TheoryManager(
-      path_to_isa_bin= path_to_isa_bin,
-      wd=working_directory,
-    )
+      path_to_isa_bin = path_to_isa_bin,
+      wd = working_directory,
+      logic = logic,
+      sessionRoots = session_roots
+  )
   val theoryStarter: TheoryManager.Text =
     TheoryManager.Text(starter_string, setup.workingDirectory.resolve(""))
-  var thy1: Theory = theoryManager.beginTheory(theoryStarter)
+  var thy1: Theory = beginTheory(theoryStarter)
   if (debug) println("Checkpoint 9_6: Loading theory")
   thy1.await
   if (debug) println("Checkpoint 10: Loading theory finished")

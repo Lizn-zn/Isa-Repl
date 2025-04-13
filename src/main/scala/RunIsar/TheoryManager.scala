@@ -20,11 +20,11 @@ import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class TheoryManager(var path_to_isa_bin: String, var wd : String) {
+class TheoryManager(var path_to_isa_bin: String, var wd : String,  var logic: String, var sessionRoots: List[String]) {
   val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = Path.of(path_to_isa_bin),
-    sessionRoots = Nil,
+    sessionRoots = sessionRoots.map(s => Path.of(s)),
     userDir = None,
-    logic = "HOL",
+    logic = logic,
     workingDirectory = Path.of(wd),
     build=false
   )
