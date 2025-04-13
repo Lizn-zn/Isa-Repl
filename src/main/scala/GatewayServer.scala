@@ -148,7 +148,11 @@ class IsaReplApplication {
   }
 
   def _extract_thm_deps(isarString: String): List[String] = {
-    repl.get_thm_deps(isarString)
+    repl.extract_thm_deps(isarString)
+  }
+
+  def _extract_hammer_facts(): String = {
+    repl.extract_hammer_facts()
   }
 
 }
