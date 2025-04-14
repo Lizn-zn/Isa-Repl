@@ -498,7 +498,10 @@ class IsaREPL(
       var listOfFilesBuffer: ListBuffer[File] = new ListBuffer[File]
       for (f <- dir.listFiles()) {
         if (f.isDirectory) {
-          listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
+          val excludedDirs = Seq("AARCH64", "ARM_HYP", "RISCV64", "X64")
+          if (!excludedDirs.exists(f.getName.contains)) {
+              listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
+          }
         } else if (f.toString.endsWith(".thy")) {
           listOfFilesBuffer += f
         }
