@@ -5,6 +5,7 @@ import RunIsar.IsaREPL
 import de.unruh.isabelle.control.IsabelleMLException
 import java.nio.file.Paths
 import java.util.concurrent.TimeoutException
+import RunIsar.TempFileManager
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
@@ -24,6 +25,18 @@ class IsaReplApplication {
     val msg = repl.reset_isabelle(pathToFile)
     if (msg != "Reset") {
       _initializeRepl(pathToFile)
+    }
+  }
+
+  def _cleanup(): Unit = {
+    try {
+      if (repl != null) {
+        repl.exit_isabelle()
+      }
+      TempFileManager.cleanupAll()
+    } catch {
+      case e: Exception => 
+        println(s"Error during cleanup: ${e.getMessage}")
     }
   }
   
@@ -100,6 +113,23 @@ class IsaReplApplication {
         "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
       case e: TimeoutException =>
         "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _try_close(): String = {
+    val result = try{
+        val (ok, results) = repl.try_close()
+        if (ok) {
+          "True" + "<\\SEP>" + results
+        } else {
+          "False" + "<\\SEP>" + results
+        }
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
     }
     result
   }
@@ -200,8 +230,15 @@ object IsaReplGatewayServer {
     Runtime.getRuntime.addShutdownHook(new Thread {
       override def run(): Unit = {
         println("\nReceived shutdown signal - terminating gracefully...")
-        gateway.shutdown()  // Using correct shutdown method
-        println("Server shutdown complete")
+        try {
+          app._cleanup()
+          gateway.shutdown()
+          println("Server shutdown complete")
+        } catch {
+          case e: Exception =>
+            println(s"Error during shutdown: ${e.getMessage}")
+            e.printStackTrace()
+        }
       }
     })
 
@@ -219,7 +256,8 @@ object IsaReplGatewayServer {
       case e: Exception => 
         println(s"Server error: ${e.getMessage}")
         e.printStackTrace()
-        gateway.shutdown()  // Using correct shutdown method
+        app._cleanup()
+        gateway.shutdown()
         System.exit(1)
     } finally {
       println("Server process ending")
