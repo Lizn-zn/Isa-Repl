@@ -119,7 +119,12 @@ class IsaReplApplication {
 
   def _try_close(): String = {
     val result = try{
-        "True" + "<\\SEP>" + repl.try_close()
+        val (ok, results) = repl.try_close()
+        if (ok) {
+          "True" + "<\\SEP>" + results
+        } else {
+          "False" + "<\\SEP>" + results
+        }
     } catch {
       case e: IsabelleMLException => 
         "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
