@@ -1,4 +1,2 @@
-theory Test imports AInvs.Syscall_AI
+theory Test imports Main
  begin
-
-thm_deps get_object_inv
