@@ -9,7 +9,7 @@ gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_conv
 isa_repl = gateway.entry_point
         
 # Initialize REPL with a theory file
-theory_file = os.path.abspath("Test_Dep.thy")
+theory_file = os.path.abspath("python-test/Test_Dep.thy")
 
 
 isa_repl._initializeRepl(theory_file, "AInvs", ["/home/hbd/verification/l4v"], "/home/hbd/verification/l4v")

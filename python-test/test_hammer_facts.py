@@ -9,7 +9,7 @@ gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_conv
 isa_repl = gateway.entry_point
 
 # Initialize REPL with a theory file
-theory_file = os.path.abspath("Test.thy")
+theory_file = os.path.abspath("python-test/Test.thy")
 
 
 isa_repl._initializeRepl(theory_file)
@@ -28,7 +28,7 @@ result = isa_repl._extract_hammer_facts()
 print("Extract fact result", result)
 
 # Add a proof step
-proof_step = "\n proof- \n show ?thesis by (simp add: numeral_eq_Suc)"
+proof_step = "show ?thesis by (simp add: numeral_eq_Suc)"
 result = isa_repl._step(proof_step)
 print("Proof step result:", result)
 
