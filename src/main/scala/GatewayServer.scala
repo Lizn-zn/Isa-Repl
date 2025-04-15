@@ -76,6 +76,8 @@ class IsaReplApplication {
     } catch {
       case e: IsabelleMLException => 
         "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
+        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
     }
     result
   }

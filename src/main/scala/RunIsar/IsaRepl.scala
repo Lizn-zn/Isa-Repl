@@ -668,9 +668,8 @@ class IsaREPL(
             |             val ctxt = Proof.context_of p_state;
             |             val params = ${Sledgehammer_Commands}.default_params thy
             |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
-            |                 ("timeout","30"),
+            |                 ("timeout","180"),
             |                 ("max_proofs", "1"),
-            |                 ("dont_preplay", "true"),
             |                 ("verbose","false")];
             |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
             |             val (result, (outcome, step)) = results;
@@ -678,9 +677,8 @@ class IsaREPL(
             |             (result, (${Sledgehammer}.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
             |           end;
             |    in
-            |      Timeout.apply (Time.fromSeconds 90) go_run (state, thy) end
+            |      go_run (state, thy) end
             |""".stripMargin
-
     )
   
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
@@ -862,7 +860,7 @@ class IsaREPL(
       top_level_state: ToplevelState,
       added_names: List[String],
       deleted_names: List[String],
-      timeout_in_millis: Int = 300000 // 300 seconds
+      timeout_in_millis: Int = 60000 // 60 seconds
   ): (Boolean, List[String]) = {
     if (debug) println("Checkpoint Hammer1: Begin normal_with_hammer")
     val f_res: Future[(Boolean, List[String])] = Future.apply {
@@ -1043,11 +1041,11 @@ class IsaREPL(
   }
 
   def step_without_timeout(isar_string: String): String = {
-    toplevel = step(isar_string, toplevel, 300000)
+    toplevel = step(isar_string, toplevel, 180000)
     getStateString
   }
 
-  def prove_by_hammer(timeout_in_millis: Int = 300000): (Boolean, String) = {
+  def prove_by_hammer(timeout_in_millis: Int = 60000): (Boolean, String) = {
     val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
     val results: String = tactic.mkString("<\\SEP>")  
     (ok, results)
