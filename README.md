@@ -19,6 +19,10 @@ export ISA_REPL_PATH=/path/to/Isa-Repl/target/IsaREPL.jar
 # Start the JVM server
 process = subprocess.Popen(["java", "-jar", os.getenv("ISA_REPL_PATH"), 25333])
 
+# Connect to the JVM
+gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555))
+isa_repl = gateway.entry_point
+
 # Initialize the REPL
 theory_file = os.path.abspath("python-test/Test.thy")
 isa_repl.initializeRepl(theory_file)

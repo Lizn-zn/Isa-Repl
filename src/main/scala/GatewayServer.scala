@@ -7,9 +7,7 @@ import de.unruh.isabelle.control.IsabelleMLException
 import java.nio.file.Paths
 import java.util
 import java.util.concurrent.TimeoutException
-
-import scala.jdk.CollectionConverters._
-
+import RunIsar.TempFileManager
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
@@ -33,6 +31,25 @@ class IsaReplApplication {
       logic = logic,
       session_roots = sessionRoots.asScala.toList,
     )
+  }
+
+  def _resetRepl(pathToFile: String): Unit = {
+    val msg = repl.reset_isabelle(pathToFile)
+    if (msg != "Reset") {
+      _initializeRepl(pathToFile)
+    }
+  }
+
+  def _cleanup(): Unit = {
+    try {
+      if (repl != null) {
+        repl.exit_isabelle()
+      }
+      TempFileManager.cleanupAll()
+    } catch {
+      case e: Exception => 
+        println(s"Error during cleanup: ${e.getMessage}")
+    }
   }
   
   def _compile(): String = {
@@ -112,6 +129,23 @@ class IsaReplApplication {
     result
   }
 
+  def _try_close(): String = {
+    val result = try{
+        val (ok, results) = repl.try_close()
+        if (ok) {
+          "True" + "<\\SEP>" + results
+        } else {
+          "False" + "<\\SEP>" + results
+        }
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
   def _parse_to_steps(isar_string: String): String = {
     val result = try{
         "True" + "<\\SEP>" + repl.parse_to_steps(isar_string)
@@ -163,6 +197,44 @@ class IsaReplApplication {
     repl.extract_hammer_facts()
   }
 
+  def _clone_tls(tls_name: String): String = {
+    val result = try{
+        repl.clone_tls(tls_name)
+        "True"
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _focus_tls(tls_name: String): String = {
+    val result = try {
+        repl.focus_tls(tls_name)
+        "True"
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _subgoal_finished(): String = {
+    val result = try {
+        val res = repl.subgoal_finished()
+        if (res == true) {
+          "True" + "<\\SEP>" + "no additional messages"
+        } else {
+          "False" + "<\\SEP>" + "no additional messages"
+        }
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for check if the subgoal is finished. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+  
+
 }
 
 object IsaReplGatewayServer {
@@ -178,8 +250,15 @@ object IsaReplGatewayServer {
     Runtime.getRuntime.addShutdownHook(new Thread {
       override def run(): Unit = {
         println("\nReceived shutdown signal - terminating gracefully...")
-        gateway.shutdown()  // Using correct shutdown method
-        println("Server shutdown complete")
+        try {
+          app._cleanup()
+          gateway.shutdown()
+          println("Server shutdown complete")
+        } catch {
+          case e: Exception =>
+            println(s"Error during shutdown: ${e.getMessage}")
+            e.printStackTrace()
+        }
       }
     })
 
@@ -197,7 +276,8 @@ object IsaReplGatewayServer {
       case e: Exception => 
         println(s"Server error: ${e.getMessage}")
         e.printStackTrace()
-        gateway.shutdown()  // Using correct shutdown method
+        app._cleanup()
+        gateway.shutdown()
         System.exit(1)
     } finally {
       println("Server process ending")

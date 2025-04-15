@@ -40,7 +40,6 @@ class SmtTranslateTests extends AnyFunSuite {
                     show ?thesis 
                 """)
     val smt = isa_repl.translate_to_smt()
-    println(smt)
     val expected = """
       ; smt.random_seed=1 smt.refine_inj_axioms=false -smt2
       (set-logic AUFLIA)

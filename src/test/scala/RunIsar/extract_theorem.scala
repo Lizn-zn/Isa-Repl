@@ -50,6 +50,34 @@ class ExtractTheoremTests extends AnyFunSuite {
       qed
       """)
   }
- 
 
+  test("extract theorem No.2 from Isabelle proof") {
+    isa_repl.step("""
+      theorem fixes f :: "nat \<Rightarrow> nat" shows "\<not> (\<forall> n. f (f n) = n + 1987)"
+        proof
+          assume H: "\<forall> n. f (f n) = n + 1987"
+          let ?g = "\<lambda> n. f n - n"
+          have g_pos: "\<forall> n. ?g n >= 1"
+            proof
+              fix n
+              {
+              assume "f n < n"
+              have "f (f n) < f n"
+      """)
+    val vars = isa_repl.extract_vars()
+    val assms = isa_repl.extract_assms()
+    val goal = isa_repl.extract_goal()
+    assert(vars == List("n :: nat", "f :: nat \\<Rightarrow> nat"))
+    assert(assms == List("f n < n", "\\<forall>n. f (f n) = n + 1987"))
+    assert(goal == "f (f n) < f n")
+    val result = isa_repl.step("""
+            sorry
+            }
+        show "?g n >= 1" sorry
+        qed
+        show False sorry
+        qed""")
+    assert(result == "")
+  }
+ 
 }

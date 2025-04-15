@@ -1,6 +1,14 @@
 import os
+import subprocess
 from py4j.java_gateway import JavaGateway, GatewayParameters
-from py4j.java_collections import ListConverter
+import time
+
+jar_path = os.getenv("ISA_REPL_PATH")
+process = subprocess.Popen([
+    "java", "-jar", jar_path, str(25555)
+])
+# Give the server some time to start
+time.sleep(1)
 
 # Connect to the JVM
 gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_convert=True))
