@@ -2,46 +2,18 @@ package RunIsar
 
 import java.nio.file.{Path, Paths}
 import scala.collection.JavaConverters._
-
 import util.control.Breaks
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.{
-  Await,
-  ExecutionContext,
-  Future,
-  TimeoutException,
-  blocking
-}
+import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException, blocking}
 import scala.concurrent.duration.Duration
-import scala.util.{Success, Failure}
+import scala.util.{Failure, Success}
 import sys.process._
 import _root_.java.nio.file.{Files, Path, StandardCopyOption}
 import _root_.java.io.File
-
 import de.unruh.isabelle.control.Isabelle
-import de.unruh.isabelle.mlvalue.{
-  AdHocConverter,
-  MLFunction,
-  MLFunction0,
-  MLFunction2,
-  MLFunction3,
-  MLFunction4,
-  MLValue,
-  MLValueWrapper,
-  Version
-}
-import de.unruh.isabelle.mlvalue.MLValue.{
-  compileFunction,
-  compileFunction0,
-  compileValue
-}
-import de.unruh.isabelle.pure.{
-  Context,
-  Position,
-  Theory,
-  TheoryHeader,
-  ToplevelState
-}
+import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3, MLFunction4, MLValue, MLValueWrapper, Version}
+import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0, compileValue}
+import de.unruh.isabelle.pure.{Context, Position, Theory, TheoryHeader, ToplevelState}
 
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
@@ -58,17 +30,24 @@ object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
 
 class IsaREPL(
-    var path_to_isa_bin: String,
-    var path_to_file: String,
-    var working_directory: String,
-    var debug: Boolean = false
+               var path_to_isa_bin: String,
+               var path_to_file: String,
+               var working_directory: String,
+               var logic: String = "HOL",
+               var session_roots: List[String] = Nil,
+               var debug: Boolean = false
 ) {
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
   path_to_file.split("/").last.replace(".thy", "")
   val isabelleHome: Path = Paths.get(path_to_isa_bin)
-  val setup: Isabelle.Setup = Isabelle.Setup(isabelleHome = isabelleHome, workingDirectory = Path.of(working_directory))
+  val setup: Isabelle.Setup = Isabelle.Setup(
+    isabelleHome = isabelleHome,
+    workingDirectory = Path.of(working_directory),
+    logic = logic,
+    sessionRoots = session_roots.map(s => Path.of(s)),
+  )
   implicit val isabelle: Isabelle = new Isabelle(setup)
   implicit val ec: ExecutionContext = ExecutionContext.global
   if (debug) println("Checkpoint 2: Compile ML functions")
@@ -497,6 +476,33 @@ class IsaREPL(
       "fn (text,pos) => Thy_Header.read pos text"
     )
 
+  def getHeader(
+                    source: Source
+                )(implicit isabelle: Isabelle, ec: ExecutionContext): TheoryHeader =
+      source match {
+          case Text(text, path, position) =>
+              Ops.header_read(text, position).retrieveNow
+  }
+
+  def beginTheory(
+                      source: Source
+                  )(implicit isabelle: Isabelle, ec: ExecutionContext): Theory = {
+      if (debug) println("Checkpoint 9_1")
+      val header = getHeader(source)
+      if (debug) println("Checkpoint 9_2")
+      val masterDir = source.path
+      if (debug) println("Checkpoint 9_3")
+      val registers: ListBuffer[String] = new ListBuffer[String]()
+      if (debug) println("Checkpoint 9_4")
+      for (theory_name <- header.imports) {
+          if (importMap.contains(theory_name)) {
+              registers += s"${logic}.${importMap(theory_name)}"
+          } else registers += theory_name
+      }
+      if (debug) println("Checkpoint 9_5")
+      Ops
+          .begin_theory(masterDir, header, registers.toList.map(Theory.apply)).force.retrieveNow
+  }
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
   private var fileContent: String = Files.readString(Path.of(path_to_file))
@@ -527,7 +533,10 @@ class IsaREPL(
       var listOfFilesBuffer: ListBuffer[File] = new ListBuffer[File]
       for (f <- dir.listFiles()) {
         if (f.isDirectory) {
-          listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
+          val excludedDirs = Seq("AARCH64", "ARM_HYP", "RISCV64", "X64")
+          if (!excludedDirs.exists(f.getName.contains)) {
+              listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
+          }
         } else if (f.toString.endsWith(".thy")) {
           listOfFilesBuffer += f
         }
@@ -574,12 +583,14 @@ class IsaREPL(
   if (debug) println("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
-      path_to_isa_bin= path_to_isa_bin,
-      wd=working_directory,
-    )
+      path_to_isa_bin = path_to_isa_bin,
+      wd = working_directory,
+      logic = logic,
+      sessionRoots = session_roots
+  )
   val theoryStarter: TheoryManager.Text =
     TheoryManager.Text(starter_string, setup.workingDirectory.resolve(""))
-  var thy1: Theory = theoryManager.beginTheory(theoryStarter)
+  var thy1: Theory = beginTheory(theoryStarter)
   if (debug) println("Checkpoint 9_6: Loading theory")
   thy1.await
   if (debug) println("Checkpoint 10: Loading theory finished")
@@ -648,6 +659,19 @@ class IsaREPL(
   val Sledgehammer_Prover: String =
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
 
+  val Sledgehammer_Prover_Minimize: String =
+      thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover_Minimize")
+
+  val Sledgehammer_Fact: String =
+      thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Fact")
+
+  val Sledgehammer_MaSh: String =
+      thy_for_sledgehammer.importMLStructureNow("Sledgehammer_MaSh")
+
+  val ATP_Util: String =
+      thy_for_sledgehammer.importMLStructureNow("ATP_Util")
+
+
   // prove_with_Sledgehammer is mostly identical to check_with_Sledgehammer except for that when the returned Boolean is true, it will
   // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
   // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".
@@ -694,6 +718,55 @@ class IsaREPL(
         |        end
         |""".stripMargin
     )
+
+  val hammer_selected_facts: MLFunction4[ToplevelState, Theory, List[String], List[String], String] =
+      compileFunction[ToplevelState, Theory, List[String], List[
+          String
+      ], String](
+          s"""
+              |        fn (state, thy, adds, dels) =>
+              |let
+              |  val p_state = Toplevel.proof_of state
+              |  val ctxt = Proof.context_of p_state
+              |  fun get_refs_and_token_lists (name) = (Facts.named name, []);
+              |  val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
+              |  val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
+              |  val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
+              |  val params = ${Sledgehammer_Commands}.default_params thy
+              |    [("provers", "cvc5 vampire verit e spass z3 zipperposition"),("timeout","25"),("verbose","true")];
+              |  val state_string = XML.content_of (YXML.parse_body (Toplevel.string_of_state state))
+              |   val {verbose, spy, provers, falsify, induction_rules, max_facts,
+              |    max_proofs, slices, timeout, ...} = params
+              |
+              |  val inst_inducts = induction_rules = SOME ${Sledgehammer_Prover}.Instantiate
+              |        val {facts = chained_thms, goal, ...} = Proof.goal p_state
+              |        val (_, hyp_ts, concl_t) = ${ATP_Util}.strip_subgoal goal 1 ctxt
+              |        val _ =
+              |          (case find_first (not o  ${Sledgehammer_Prover_Minimize}.is_prover_supported ctxt) provers of
+              |            SOME name => error ("No such prover: " ^ name)
+              |          | NONE => ())
+              |        val ({elapsed, ...}, all_facts) = Timing.timing
+              |
+              |          (${Sledgehammer_Fact}.nearly_all_facts_of_context ctxt inst_inducts override chained_thms hyp_ts) concl_t
+              | val max_max_facts =
+              |              (case max_facts of
+              |                SOME n => n
+              |              | NONE =>
+              |                fold (fn prover =>
+              |                      fold (fn ((_, _, _, max_facts, _), _) => Integer.max max_facts)
+              |                    ( ${Sledgehammer_Prover_Minimize}.get_slices ctxt prover))
+              |                  provers 0)
+              |              * 51 div 50
+              |  val ({elapsed, ...}, factss) = Timing.timing
+              |              (${Sledgehammer_MaSh}.relevant_facts ctxt params (hd provers) max_max_facts override hyp_ts concl_t)
+              |              all_facts
+              | val induction_rules = the_default (${Sledgehammer_Prover}.Exclude) induction_rules
+              |            val factss = map (apsnd (${Sledgehammer_Prover}.maybe_filter_out_induction_rules induction_rules)) factss
+              |            val fact_string = ${Sledgehammer}.string_of_factss factss
+              |in fact_string
+              |          end
+              |""".stripMargin
+      )
 
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
   if (debug) println("Checkpoint 12")
@@ -1099,6 +1172,15 @@ class IsaREPL(
       }
     }
     steps
+  }
+
+  def extract_thm_deps(theorem_name: String): List[String] = {
+    get_dependent_thms(toplevel, theorem_name).force.retrieveNow
+  }
+
+  def extract_hammer_facts(): String = {
+    val output = hammer_selected_facts(toplevel, thy1, List[String](), List[String]()).force.retrieveNow
+    output
   }
   
   // reset isabelle and thy to be proved

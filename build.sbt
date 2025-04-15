@@ -75,14 +75,13 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % 
 // To learn more about multi-project builds, head over to the official sbt
 // documentation at http://www.scala-sbt.org/documentation.html
 
-// libraryDependencies += "de.unruh" %% "scala-isabelle" % "0.4.1"  // release
+libraryDependencies += "de.unruh" %% "scala-isabelle" % "0.4.3-RC1"  // release
 libraryDependencies ++= Seq(
-    "default" % "scala-isabelle_2.13" % "1.0.0",
     "net.sf.py4j" % "py4j" % "0.10.9.7"
 ).map(_.exclude("org.slf4j", "*"))
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3"
-// libraryDependencies += "org.slf4j" % "slf4j-nop" % "2.0.13"
+libraryDependencies += "org.slf4j" % "slf4j-nop" % "2.0.13"
 
 libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.2.19" % Test

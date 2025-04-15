@@ -3,7 +3,9 @@ package org.isarepl
 import py4j.GatewayServer
 import RunIsar.IsaREPL
 import de.unruh.isabelle.control.IsabelleMLException
+
 import java.nio.file.Paths
+import java.util
 import java.util.concurrent.TimeoutException
 import RunIsar.TempFileManager
 
@@ -13,11 +15,21 @@ class IsaReplApplication {
   
   private var repl: IsaREPL = _
   
-  def _initializeRepl(pathToFile: String): Unit = {
+    def _initializeRepl(pathToFile: String): Unit = {
     repl = new IsaREPL(
       path_to_isa_bin = isabelleHome,
       path_to_file = pathToFile,
       working_directory = workingDirectory
+    )
+  }
+
+  def _initializeRepl(pathToFile: String, logic: String, sessionRoots: util.ArrayList[String], workingDirectory: String): Unit = {
+    repl = new IsaREPL(
+      path_to_isa_bin = isabelleHome,
+      path_to_file = pathToFile,
+      working_directory = workingDirectory,
+      logic = logic,
+      session_roots = sessionRoots.asScala.toList,
     )
   }
 
@@ -175,6 +187,14 @@ class IsaReplApplication {
         "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
     }
     result
+  }
+
+  def _extract_thm_deps(isarString: String): List[String] = {
+    repl.extract_thm_deps(isarString)
+  }
+
+  def _extract_hammer_facts(): String = {
+    repl.extract_hammer_facts()
   }
 
   def _clone_tls(tls_name: String): String = {
