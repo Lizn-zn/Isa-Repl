@@ -1,5 +1,7 @@
+.gitignore
 project/project/*
 project/target/*
+**/project/metals.sbt
 target/*
 .idea/
 !target/IsaREPL.jar
