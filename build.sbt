@@ -77,7 +77,7 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % 
 
 // libraryDependencies += "de.unruh" %% "scala-isabelle" % "0.4.1"  // release
 libraryDependencies ++= Seq(
-    "default" % "scala-isabelle_2.13" % "1.0.0",
+    "de.unruh" % "scala-isabelle_2.13" % "master-SNAPSHOT",
     "net.sf.py4j" % "py4j" % "0.10.9.7"
 ).map(_.exclude("org.slf4j", "*"))
 

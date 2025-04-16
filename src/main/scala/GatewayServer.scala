@@ -190,6 +190,17 @@ class IsaReplApplication {
     result
   }
 
+  def _remove_tls(tls_name: String): String = {
+    val result = try {
+        repl.remove_tls(tls_name)
+        "True"
+    } catch {
+      case e: IsabelleMLException => 
+        "False" + "<\\SEP>" + s"failed for remove the tls. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
   def _focus_tls(tls_name: String): String = {
     val result = try {
         repl.focus_tls(tls_name)

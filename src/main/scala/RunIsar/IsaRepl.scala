@@ -18,7 +18,7 @@ import sys.process._
 import _root_.java.nio.file.{Files, Path, StandardCopyOption}
 import _root_.java.io.File
 
-import de.unruh.isabelle.control.Isabelle
+import de.unruh.isabelle.control.{Isabelle, IsabelleMLException}
 import de.unruh.isabelle.mlvalue.{
   AdHocConverter,
   MLFunction,
@@ -49,13 +49,20 @@ import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
-import de.unruh.isabelle.control.IsabelleMLException
 
 object Transition extends AdHocConverter("Toplevel.transition")
 object ProofState extends AdHocConverter("Proof.state")
 object RuntimeError extends AdHocConverter("Runtime.error")
 object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
+
+/**
+ * A wrapper exception class for IsabelleMLException that belongs to the RunIsar package.
+ * This allows for better exception handling and encapsulation of Isabelle-specific exceptions.
+ */
+class RunIsarMLException(message: String, cause: Throwable = null) extends Exception(message, cause) {
+  def this(original: IsabelleMLException) = this(original.getMessage, original)
+}
 
 class IsaREPL(
     var path_to_isa_bin: String,
@@ -229,8 +236,11 @@ class IsaREPL(
       val dependent_thms = get_dependent_thms(toplevel_state, theorem_name).force.retrieveNow
       return dependent_thms
     } catch {
-      case e: IsabelleMLException => {println("Name not found. Trying locales.")}
-      case o: Throwable => {println(o)}
+      case e: IsabelleMLException => {
+        println("Name not found. Trying locales.")
+        throw new RunIsarMLException(e)
+      }
+      case o: Throwable => {println(o); throw o}
     }
     val relevant_locales = locales_defined_in_file(toplevel_state)
     // println(relevant_locales)
@@ -668,7 +678,7 @@ class IsaREPL(
             |             val ctxt = Proof.context_of p_state;
             |             val params = ${Sledgehammer_Commands}.default_params thy
             |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
-            |                 ("timeout","180"),
+            |                 ("timeout","30"),
             |                 ("max_proofs", "1"),
             |                 ("verbose","false")];
             |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
@@ -686,7 +696,7 @@ class IsaREPL(
       s""" fn (state) =>
         |        let
         |          val proof_state = Toplevel.proof_of state;
-        |          val (success, method, step) = ${Auto_Isabelle}.try_close proof_state;
+        |          val (success, method, step) = ${Auto_Isabelle}.try_close (Time.fromSeconds 10) proof_state;
         |        in
         |          (success, method, ${Auto_Isabelle}.clean_theorem_text step)
         |        end
@@ -699,7 +709,7 @@ class IsaREPL(
     top_level_state_map = Map()
   }
 
-  def reset_prob(): Unit = {
+  def reset_problem(): Unit = {
     thy1 = theoryManager.beginTheory(theoryStarter)
     toplevel = init_toplevel().force.retrieveNow
     reset_map()
@@ -878,7 +888,7 @@ class IsaREPL(
 
   def normal_with_try0(
       top_level_state: ToplevelState,
-      timeout_in_millis: Int = 10000 // 10 seconds
+      timeout_in_millis: Int = 12000 // 12 seconds
   ): (Boolean, String) = {
     val f_res: Future[(Boolean, String)] = Future.apply {
       val first_result = normal_with_try0(top_level_state).force.retrieveNow
@@ -1045,13 +1055,13 @@ class IsaREPL(
     getStateString
   }
 
-  def prove_by_hammer(timeout_in_millis: Int = 60000): (Boolean, String) = {
+  def prove_by_hammer(timeout_in_millis: Int = 300000): (Boolean, String) = {
     val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
     val results: String = tactic.mkString("<\\SEP>")  
     (ok, results)
   }
 
-  def try_close(timeout_in_millis: Int = 10000): (Boolean, String) = {
+  def try_close(timeout_in_millis: Int = 12000): (Boolean, String) = {
     val (ok, result) = normal_with_try0(toplevel, timeout_in_millis)
     (ok, result)
   }
@@ -1099,6 +1109,7 @@ class IsaREPL(
     steps
   }
   
+  
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {
     path_to_file = path
@@ -1124,12 +1135,6 @@ class IsaREPL(
   // Manage top level states with the internal map
   def copy_tls: MLValue[ToplevelState] = toplevel.mlValue
 
-  def clone_tls(tls_name: String): Unit =
-    top_level_state_map += (tls_name -> copy_tls)
-
-  def clone_tls(old_name: String, new_name: String): Unit =
-    top_level_state_map += (new_name -> top_level_state_map(old_name))
-
   def _clone_tls_scala(tls_scala: ToplevelState): Future[ToplevelState] =
     ToplevelState.converter.retrieve(tls_scala.mlValue)
 
@@ -1145,8 +1150,24 @@ class IsaREPL(
   def retrieve_tls(tls_name: String): ToplevelState =
     Await.result(_retrieve_tls(tls_name), Duration.Inf)
 
-  def focus_tls(tls_name: String): Unit =
+  def clone_tls(tls_name: String): Unit = {
+    top_level_state_map += (tls_name -> copy_tls)
+  }
+
+  def clone_tls(old_name: String, new_name: String): Unit =
+    top_level_state_map += (new_name -> top_level_state_map(old_name))
+
+  def focus_tls(tls_name: String): Unit = {
     toplevel = retrieve_tls(tls_name)
+  }
+
+  def remove_tls(tls_name: String): Unit = {
+    if (top_level_state_map.contains(tls_name)) {
+      top_level_state_map -= tls_name
+      // wait for 100ms to ensure the tls is removed
+      Thread.sleep(100)
+    }
+  }
 
   def parse_entire_thy: List[String] =
     parse_text(thy1, fileContent).force.retrieveNow.map(_._2)

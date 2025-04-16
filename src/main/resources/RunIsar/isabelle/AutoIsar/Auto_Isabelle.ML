@@ -8,7 +8,7 @@ In Scala env, timeout mechanism is not working.
 structure Auto_Isabelle : sig
   val clean_theorem_text : string -> string
   type result = {name: string, command: string, time: int, state: Proof.state}
-  val try_close : Proof.state ->  bool * string * string
+  val try_close : Time.time -> Proof.state ->  bool * string * string
 end = struct
 
 fun clean_theorem_text (thm_text : string) = 
@@ -71,40 +71,39 @@ fun apply_named_method name _ st =
    end 
 
 
-fun try_close st =
-  let
-    val apply_methods = map apply_named_method named_methods; 
-    val default_timeout = (SOME (seconds 0.0))
-    val results =
+fun try_close_async st =
+  Future.fork (fn () =>
+    let
+      val apply_methods = map apply_named_method named_methods
+      val results =
         map (fn method =>
-          case method default_timeout st of
-           SOME {command, name, time, ...} => SOME {command = command, name = name, time = time}
-           | NONE => NONE 
+          case method (SOME (seconds 0.0)) st of
+            SOME r => SOME r
+          | NONE => NONE
         ) apply_methods
-        |> List.mapPartial I 
-    val (success, method, step) =
+        |> List.mapPartial I
+    in
       case results of
         [] => (false, "All Failed", "")
-      | results as {name, command, ...} :: _ =>
-        let
-          val method_times =
-            results
-            |> map (fn {name, time, ...} => (time, name))
-            |> AList.coalesce (op =)
-            |> map (swap o apsnd commas);
-          val first_method_time = 
-            case method_times of
-              [] => ""
-              | (_, t) :: _ => " (" ^ string_of_int t ^ " ms" ^ ")";
-          val step =
-            "Try this" ^ ": " ^
-            Active.sendback_markup_command command ^
-            first_method_time
-        in
-          (true, name, step)
-        end 
-   in
-     (success, method, step)
-end
+      | {name, command, ...} :: _ =>
+          (true, name, "Try this: " ^ Active.sendback_markup_command command)
+    end)
+
+(* fun try_close st = Future.join (try_close_async st) *)
+
+fun try_close timeout st =
+  let
+    val future = try_close_async st
+    val start_time = Time.now ()
+    fun check_timeout () = Time.now () - start_time > timeout
+    fun poll interval =
+      if Future.is_finished future
+      then Future.join future
+      else if check_timeout ()
+      then (Future.cancel future; (false, "All tactics timed out", ""))
+      else (OS.Process.sleep (seconds interval); poll (Real.min ((interval * 2.0), 1.0)))
+  in
+    poll 0.1
+  end
    
 end
