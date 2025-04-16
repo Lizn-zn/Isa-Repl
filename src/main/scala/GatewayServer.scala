@@ -8,6 +8,7 @@ import java.nio.file.Paths
 import java.util
 import java.util.concurrent.TimeoutException
 import RunIsar.TempFileManager
+import scala.collection.JavaConverters._
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
