@@ -4,16 +4,42 @@ import java.nio.file.{Path, Paths}
 import scala.collection.JavaConverters._
 import util.control.Breaks
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.{Await, ExecutionContext, Future, TimeoutException, blocking}
+import scala.concurrent.{
+  Await,
+  ExecutionContext,
+  Future,
+  TimeoutException,
+  blocking
+}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 import sys.process._
 import _root_.java.nio.file.{Files, Path, StandardCopyOption}
 import _root_.java.io.File
 import de.unruh.isabelle.control.Isabelle
-import de.unruh.isabelle.mlvalue.{AdHocConverter, MLFunction, MLFunction0, MLFunction2, MLFunction3, MLFunction4, MLValue, MLValueWrapper, Version}
-import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0, compileValue}
-import de.unruh.isabelle.pure.{Context, Position, Theory, TheoryHeader, ToplevelState}
+import de.unruh.isabelle.mlvalue.{
+  AdHocConverter,
+  MLFunction,
+  MLFunction0,
+  MLFunction2,
+  MLFunction3,
+  MLFunction4,
+  MLValue,
+  MLValueWrapper,
+  Version
+}
+import de.unruh.isabelle.mlvalue.MLValue.{
+  compileFunction,
+  compileFunction0,
+  compileValue
+}
+import de.unruh.isabelle.pure.{
+  Context,
+  Position,
+  Theory,
+  TheoryHeader,
+  ToplevelState
+}
 
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
@@ -30,23 +56,23 @@ object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
 
 class IsaREPL(
-               var path_to_isa_bin: String,
-               var path_to_file: String,
-               var working_directory: String,
-               var logic: String = "HOL",
-               var session_roots: List[String] = Nil,
-               var debug: Boolean = false
+    var path_to_isa_bin: String,
+    var path_to_file: String,
+    var working_directory: String,
+    var logic: String = "HOL",
+    var session_roots: List[String] = Nil,
+    var debug: Boolean = false
 ) {
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
-  path_to_file.split("/").last.replace(".thy", "")
+    path_to_file.split("/").last.replace(".thy", "")
   val isabelleHome: Path = Paths.get(path_to_isa_bin)
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
     workingDirectory = Path.of(working_directory),
     logic = logic,
-    sessionRoots = session_roots.map(s => Path.of(s)),
+    sessionRoots = session_roots.map(s => Path.of(s))
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
   implicit val ec: ExecutionContext = ExecutionContext.global
@@ -59,18 +85,18 @@ class IsaREPL(
   val thy0 = Theory(autoIsaPath)
   val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
   // Compile useful ML functions
-  val num_of_processors : MLFunction0[Int] = 
+  val num_of_processors: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
-  val num_of_threads : MLFunction0[Int] = 
+  val num_of_threads: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.max_threads ()")
   // Compile useful ML functions
   val script_thy: MLFunction2[String, Theory, Theory] =
     compileFunction[String, Theory, Theory](
       "fn (str,thy) => Thy_Info.script_thy Position.none str thy"
     )
-  val init_toplevel: MLFunction0[ToplevelState] = 
+  val init_toplevel: MLFunction0[ToplevelState] =
     if (Version.from2023)
-      compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE") 
+      compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE")
     else
       compileFunction0[ToplevelState]("Toplevel.init_toplevel")
   val is_proof: MLFunction[ToplevelState, Boolean] =
@@ -113,11 +139,11 @@ class IsaREPL(
   ]("fn (int, tr, st) => Toplevel.command_errors int tr st")
   val toplevel_end_theory: MLFunction[ToplevelState, Theory] =
     compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
-  val theory_of_state: MLFunction[_, _] =   
-    if (Version.from2023)  
-      compileFunction[Theory, ToplevelState]("Toplevel.make_state o SOME")  
-    else  
-      compileFunction[ToplevelState, Theory]("Toplevel.theory_of")  
+  val theory_of_state: MLFunction[_, _] =
+    if (Version.from2023)
+      compileFunction[Theory, ToplevelState]("Toplevel.make_state o SOME")
+    else
+      compileFunction[ToplevelState, Theory]("Toplevel.theory_of")
   val context_of_state: MLFunction[ToplevelState, Context] =
     compileFunction[ToplevelState, Context]("Toplevel.context_of")
   val name_of_transition: MLFunction[Transition.T, String] =
@@ -205,33 +231,37 @@ class IsaREPL(
     val toplevel_state = retrieve_tls(tls_name)
     // println("Retrieved top level")
     try {
-      val dependent_thms = get_dependent_thms(toplevel_state, theorem_name).force.retrieveNow
+      val dependent_thms =
+        get_dependent_thms(toplevel_state, theorem_name).force.retrieveNow
       return dependent_thms
     } catch {
-      case e: IsabelleMLException => {println("Name not found. Trying locales.")}
-      case o: Throwable => {println(o)}
+      case e: IsabelleMLException => {
+        println("Name not found. Trying locales.")
+      }
+      case o: Throwable => { println(o) }
     }
     val relevant_locales = locales_defined_in_file(toplevel_state)
     // println(relevant_locales)
 
     var dep_thms: List[String] = List()
-    
+
     Breaks.breakable {
       for (relevant_locale <- relevant_locales) {
         println("Trying locale: " + relevant_locale)
         val full_name = relevant_locale.trim + '.' + theorem_name
         // println(s"Trying out full name: ${full_name}")
         try {
-          val dependent_thms = get_dependent_thms(toplevel_state, full_name).force.retrieveNow
+          val dependent_thms =
+            get_dependent_thms(toplevel_state, full_name).force.retrieveNow
           dep_thms = dependent_thms
           println("This locale works: " + relevant_locale)
           Breaks.break()
         } catch {
-          case e: Throwable => {println(e)}
+          case e: Throwable => { println(e) }
         }
       }
     }
-    
+
     dep_thms
   }
 
@@ -304,12 +334,15 @@ class IsaREPL(
     deduplicated_all_defs.distinct
   }
   // Nasty locales
-  val locales_opened_for_state: MLFunction[ToplevelState, List[String]] = compileFunction[ToplevelState, List[String]](
-    """fn (tls) => Locale.get_locales (Toplevel.theory_of tls)""".stripMargin
-  )
+  val locales_opened_for_state: MLFunction[ToplevelState, List[String]] =
+    compileFunction[ToplevelState, List[String]](
+      """fn (tls) => Locale.get_locales (Toplevel.theory_of tls)""".stripMargin
+    )
 
   def locales_defined_in_file(tls: ToplevelState): List[String] = {
-    val locales_opened: List[String] = locales_opened_for_state(tls).force.retrieveNow
+    val locales_opened: List[String] = locales_opened_for_state(
+      tls
+    ).force.retrieveNow
     locales_opened.filter(_.startsWith(currentTheoryName))
   }
 
@@ -349,15 +382,16 @@ class IsaREPL(
     total_facts_and_defs_string(tls)
   }
 
-  /** Extracts the current variables, assumptions and conclusion from the proof state.
-   *
-   * This function takes a ToplevelState and returns a tuple containing:
-   * - A list of strings representing the current assumptions (local facts)
-   * - A string representing the current proof goal (conclusion)
-   *
-   * The output is formatted as human-readable text, with XML markup removed.
-   */
-  val parse_vars:  MLFunction[ToplevelState, List[String]] =
+  /** Extracts the current variables, assumptions and conclusion from the proof
+    * state.
+    *
+    * This function takes a ToplevelState and returns a tuple containing:
+    *   - A list of strings representing the current assumptions (local facts)
+    *   - A string representing the current proof goal (conclusion)
+    *
+    * The output is formatted as human-readable text, with XML markup removed.
+    */
+  val parse_vars: MLFunction[ToplevelState, List[String]] =
     compileFunction[ToplevelState, List[String]](
       s"""fn (toplevel_state) =>
         |  let
@@ -477,31 +511,33 @@ class IsaREPL(
     )
 
   def getHeader(
-                    source: Source
-                )(implicit isabelle: Isabelle, ec: ExecutionContext): TheoryHeader =
-      source match {
-          case Text(text, path, position) =>
-              Ops.header_read(text, position).retrieveNow
-  }
+      source: Source
+  )(implicit isabelle: Isabelle, ec: ExecutionContext): TheoryHeader =
+    source match {
+      case Text(text, path, position) =>
+        Ops.header_read(text, position).retrieveNow
+    }
 
   def beginTheory(
-                      source: Source
-                  )(implicit isabelle: Isabelle, ec: ExecutionContext): Theory = {
-      if (debug) println("Checkpoint 9_1")
-      val header = getHeader(source)
-      if (debug) println("Checkpoint 9_2")
-      val masterDir = source.path
-      if (debug) println("Checkpoint 9_3")
-      val registers: ListBuffer[String] = new ListBuffer[String]()
-      if (debug) println("Checkpoint 9_4")
-      for (theory_name <- header.imports) {
-          if (importMap.contains(theory_name)) {
-              registers += s"${logic}.${importMap(theory_name)}"
-          } else registers += theory_name
-      }
-      if (debug) println("Checkpoint 9_5")
-      Ops
-          .begin_theory(masterDir, header, registers.toList.map(Theory.apply)).force.retrieveNow
+      source: Source
+  )(implicit isabelle: Isabelle, ec: ExecutionContext): Theory = {
+    if (debug) println("Checkpoint 9_1")
+    val header = getHeader(source)
+    if (debug) println("Checkpoint 9_2")
+    val masterDir = source.path
+    if (debug) println("Checkpoint 9_3")
+    val registers: ListBuffer[String] = new ListBuffer[String]()
+    if (debug) println("Checkpoint 9_4")
+    for (theory_name <- header.imports) {
+      if (importMap.contains(theory_name)) {
+        registers += s"${logic}.${importMap(theory_name)}"
+      } else registers += theory_name
+    }
+    if (debug) println("Checkpoint 9_5")
+    Ops
+      .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
+      .force
+      .retrieveNow
   }
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
@@ -524,7 +560,7 @@ class IsaREPL(
     }
     "This is wrong!!!"
   }
-  // starter_string is for example "theory Test imports Main HOL.Real begin" 
+  // starter_string is for example "theory Test imports Main HOL.Real begin"
   val starter_string: String = getStarterString.trim.replaceAll("\n", " ").trim
 
   // Find out what to import from the current directory
@@ -535,7 +571,7 @@ class IsaREPL(
         if (f.isDirectory) {
           val excludedDirs = Seq("AARCH64", "ARM_HYP", "RISCV64", "X64")
           if (!excludedDirs.exists(f.getName.contains)) {
-              listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
+            listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
           }
         } else if (f.toString.endsWith(".thy")) {
           listOfFilesBuffer += f
@@ -583,10 +619,10 @@ class IsaREPL(
   if (debug) println("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
-      path_to_isa_bin = path_to_isa_bin,
-      wd = working_directory,
-      logic = logic,
-      sessionRoots = session_roots
+    path_to_isa_bin = path_to_isa_bin,
+    wd = working_directory,
+    logic = logic,
+    sessionRoots = session_roots
   )
   val theoryStarter: TheoryManager.Text =
     TheoryManager.Text(starter_string, setup.workingDirectory.resolve(""))
@@ -596,14 +632,14 @@ class IsaREPL(
   if (debug) println("Checkpoint 10: Loading theory finished")
 
   // setting up SMT_translate
-  val Skip_Proof : String = thy1.importMLStructureNow("Skip_Proof")
-  val SMT_Config : String = thy1.importMLStructureNow("SMT_Config")
-  val SMT_Normalize : String = thy1.importMLStructureNow("SMT_Normalize")
-  val SMT_Util : String = thy1.importMLStructureNow("SMT_Util")
-  val SMT_Translate : String = thy1.importMLStructureNow("SMT_Translate")
-  val parse_to_smt: MLFunction[ToplevelState, String] =  
-      compileFunction[ToplevelState, String](  
-        s""" fn (state) =>  
+  val Skip_Proof: String = thy1.importMLStructureNow("Skip_Proof")
+  val SMT_Config: String = thy1.importMLStructureNow("SMT_Config")
+  val SMT_Normalize: String = thy1.importMLStructureNow("SMT_Normalize")
+  val SMT_Util: String = thy1.importMLStructureNow("SMT_Util")
+  val SMT_Translate: String = thy1.importMLStructureNow("SMT_Translate")
+  val parse_to_smt: MLFunction[ToplevelState, String] =
+    compileFunction[ToplevelState, String](
+      s""" fn (state) =>  
             |    let  
             |       val p_state = Toplevel.proof_of state;
             |       val ctxt = Proof.context_of p_state;
@@ -646,9 +682,9 @@ class IsaREPL(
             |           str  end  
             |    in  
             |       Timeout.apply (Time.fromSeconds 180) go_run () end 
-          |""".stripMargin  
-      )  
-      
+          |""".stripMargin
+    )
+
   // setting up Sledgehammer
   // val thy_for_sledgehammer: Theory = Theory("HOL.List")
   val thy_for_sledgehammer = thy1
@@ -660,23 +696,24 @@ class IsaREPL(
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
 
   val Sledgehammer_Prover_Minimize: String =
-      thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover_Minimize")
+    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover_Minimize")
 
   val Sledgehammer_Fact: String =
-      thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Fact")
+    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Fact")
 
   val Sledgehammer_MaSh: String =
-      thy_for_sledgehammer.importMLStructureNow("Sledgehammer_MaSh")
+    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_MaSh")
 
   val ATP_Util: String =
-      thy_for_sledgehammer.importMLStructureNow("ATP_Util")
-
+    thy_for_sledgehammer.importMLStructureNow("ATP_Util")
 
   // prove_with_Sledgehammer is mostly identical to check_with_Sledgehammer except for that when the returned Boolean is true, it will
   // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
   // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".
   if (debug) println("Checkpoint 11")
-  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[String], List[String], (Boolean, (String, List[String]))] =
+  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
+    String
+  ], List[String], (Boolean, (String, List[String]))] =
     compileFunction[ToplevelState, Theory, List[String], List[
       String
     ], (Boolean, (String, List[String]))](
@@ -704,9 +741,8 @@ class IsaREPL(
             |    in
             |      Timeout.apply (Time.fromSeconds 90) go_run (state, thy) end
             |""".stripMargin
-
     )
-  
+
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
@@ -719,11 +755,12 @@ class IsaREPL(
         |""".stripMargin
     )
 
-  val hammer_selected_facts: MLFunction4[ToplevelState, Theory, List[String], List[String], String] =
-      compileFunction[ToplevelState, Theory, List[String], List[
-          String
-      ], String](
-          s"""
+  val hammer_selected_facts
+      : MLFunction4[ToplevelState, Theory, List[String], List[String], String] =
+    compileFunction[ToplevelState, Theory, List[String], List[
+      String
+    ], String](
+      s"""
               |        fn (state, thy, adds, dels) =>
               |let
               |  val p_state = Toplevel.proof_of state
@@ -766,7 +803,7 @@ class IsaREPL(
               |in fact_string
               |          end
               |""".stripMargin
-      )
+    )
 
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
   if (debug) println("Checkpoint 12")
@@ -871,8 +908,12 @@ class IsaREPL(
       for ((transition, text) <- parse_text(thy1, isarString).force.retrieveNow)
         continue.breakable {
           if (text.trim.isEmpty) continue.break()
-          else if (text.trim.startsWith("text \\<open>") && text.trim.endsWith("\\<close>")) continue.break()
-          else if (text.trim.startsWith("(*") && text.trim.endsWith("*)")) continue.break()
+          else if (
+            text.trim
+              .startsWith("text \\<open>") && text.trim.endsWith("\\<close>")
+          ) continue.break()
+          else if (text.trim.startsWith("(*") && text.trim.endsWith("*)"))
+            continue.break()
           else {
             stateActionTotal =
               stateActionTotal + (stateString + "<\\STATESEP>" + text.trim + "<\\STATESEP>" + s"$getProofLevel" + "<\\TRANSEP>")
@@ -902,12 +943,18 @@ class IsaREPL(
       blocking {
         Breaks.breakable {
           if (debug) println("start parsing " + isar_string)
-          for ((transition, text) <- parse_text(thy1, isar_string).force.retrieveNow){
+          for (
+            (transition, text) <- parse_text(
+              thy1,
+              isar_string
+            ).force.retrieveNow
+          ) {
             if (debug) println("Transition: " + text)
             continue.breakable {
               if (text.trim.isEmpty) continue.break()
               // println("Small step : " + text)
-              if (debug) println("singleTransition with timeout " + timeout_in_millis)
+              if (debug)
+                println("singleTransition with timeout " + timeout_in_millis)
               tls_to_return = if (timeout_in_millis > 100000) {
                 singleTransitionWithoutTimeout(transition, tls_to_return)
               } else {
@@ -927,7 +974,10 @@ class IsaREPL(
 
     // Await for infinite amount of time
     Await.result(f_st, Duration.Inf)
-    if (debug) println("Finish step, the current state is " + getStateString(tls_to_return))
+    if (debug)
+      println(
+        "Finish step, the current state is " + getStateString(tls_to_return)
+      )
     tls_to_return
   }
 
@@ -970,19 +1020,20 @@ class IsaREPL(
 
   if (debug) println("Checkpoint 14")
 
-  /**
-   * Executes Isabelle proof steps until reaching a specific target step.
-   * This function accumulates proof states by executing transitions one by one until 
-   * it finds the target proof step specified by isar_string.
-   *
-   * @param isar_string The target proof step to reach (as a string)
-   * @return The proof state string before the target step
-   *
-   * The function works recursively by:
-   * 1. Normalizing input strings (removing extra spaces and newlines)
-   * 2. Checking current transition against target
-   * 3. Either returning current state (if target found) or executing more steps
-   */
+  /** Executes Isabelle proof steps until reaching a specific target step. This
+    * function accumulates proof states by executing transitions one by one
+    * until it finds the target proof step specified by isar_string.
+    *
+    * @param isar_string
+    *   The target proof step to reach (as a string)
+    * @return
+    *   The proof state string before the target step
+    *
+    * The function works recursively by:
+    *   1. Normalizing input strings (removing extra spaces and newlines) 2.
+    *      Checking current transition against target 3. Either returning
+    *      current state (if target found) or executing more steps
+    */
   def accumulative_step_to_before_transition_starting(
       isar_string: String
   ): String = {
@@ -1011,14 +1062,15 @@ class IsaREPL(
     }
   }
 
-  var accumulative_index : Int = 0
+  var accumulative_index: Int = 0
   def accumulative_step_before_theorem_starts(theorem_name: String): Unit = {
-    val sanitised_theorem_name = theorem_name.trim.replaceAll("\n", " ").replaceAll(" +", " ")
-    var found_theorem : Boolean = false
-    while (!found_theorem){
+    val sanitised_theorem_name =
+      theorem_name.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+    var found_theorem: Boolean = false
+    while (!found_theorem) {
       val (transition, text) = transitions_and_texts(accumulative_index)
       val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
-      if (sanitised_text == sanitised_theorem_name){
+      if (sanitised_text == sanitised_theorem_name) {
         found_theorem = true
       } else {
         // println("Before theorem" + sanitised_text)
@@ -1028,14 +1080,13 @@ class IsaREPL(
     }
   }
   def accumulative_step_through_a_theorem: Unit = {
-    var proof_finished : Boolean = false
+    var proof_finished: Boolean = false
     while (!proof_finished) {
       val (transition, text) = transitions_and_texts(accumulative_index)
       val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
       if (sanitised_text.isEmpty) {
         accumulative_index += 1
-      }
-      else {
+      } else {
         // println("During theorem" + sanitised_text)
         // println("Stepping to: " + sanitised_text)
         singleTransition(transition)
@@ -1045,13 +1096,10 @@ class IsaREPL(
       }
     }
   }
-  def accumulative_step_to_theorem_end(theorem_name: String) : Unit ={
+  def accumulative_step_to_theorem_end(theorem_name: String): Unit = {
     accumulative_step_before_theorem_starts(theorem_name)
     accumulative_step_through_a_theorem
   }
-
-  
-  
 
   /* ==================================================================================
   The following functions are prepared interfaces for Isa-REPL
@@ -1059,7 +1107,7 @@ class IsaREPL(
   2. step(): String. Apply a single transition to the current state.
   3. step_with_30s(): String. Apply a single transition to the current state with 30s timeout.
   4. step_without_timeout(): String. Apply a single transition to the current state without timeout.
-  5. translate_to_smt(): String. Translate the current state to SMT.  
+  5. translate_to_smt(): String. Translate the current state to SMT.
   6. prove_by_hammer(): (Boolean, String). Apply sledgehammer to the current state.
   7. parse_to_steps(): String. Parse the current state to a list of steps.
   8. tls pending...
@@ -1067,12 +1115,12 @@ class IsaREPL(
 
   /*
   This function is used to compile the original thy file.
-  */
+   */
   def compile(): String = {
     var stateString: String = ""
     var context_length: Int = fileContent.split("\n").length
     if (context_length > 5) {
-      throw new Exception("Compilation context is too complex" )
+      throw new Exception("Compilation context is too complex")
     }
     for (
       (transition, text) <- parse_text(thy1, fileContent).force.retrieveNow
@@ -1091,7 +1139,7 @@ class IsaREPL(
     var stateString: String = ""
     var context_length: Int = isar_string.split("\n").length
     if (context_length > 5) {
-      throw new Exception("Compilation context is too complex" )
+      throw new Exception("Compilation context is too complex")
     }
     for (
       (transition, text) <- parse_text(thy1, isar_string).force.retrieveNow
@@ -1121,8 +1169,13 @@ class IsaREPL(
   }
 
   def prove_by_hammer(timeout_in_millis: Int = 300000): (Boolean, String) = {
-    val (ok, tactic) = normal_with_hammer(toplevel, List[String](), List[String](), timeout_in_millis)
-    val results: String = tactic.mkString("<\\SEP>")  
+    val (ok, tactic) = normal_with_hammer(
+      toplevel,
+      List[String](),
+      List[String](),
+      timeout_in_millis
+    )
+    val results: String = tactic.mkString("<\\SEP>")
     (ok, results)
   }
 
@@ -1131,10 +1184,10 @@ class IsaREPL(
     (ok, result)
   }
 
-  def translate_to_smt(): String = {  
+  def translate_to_smt(): String = {
     val result = parse_to_smt(toplevel).force.retrieveNow
-    result  
-  }  
+    result
+  }
 
   def extract_vars(): List[String] = {
     val vars = parse_vars(toplevel).force.retrieveNow
@@ -1156,12 +1209,13 @@ class IsaREPL(
     subgoal_finished
   }
 
-  /* 
+  /*
   parse a string into a list of executable commands
   it will not execute the commands, just parse them
-  */
+   */
   def parse_to_steps(isar_string: String): String = {
-    val isar_string_trim = isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+    val isar_string_trim =
+      isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
     var steps: String = ""
     var stateString: String = ""
     for (
@@ -1179,10 +1233,15 @@ class IsaREPL(
   }
 
   def extract_hammer_facts(): String = {
-    val output = hammer_selected_facts(toplevel, thy1, List[String](), List[String]()).force.retrieveNow
+    val output = hammer_selected_facts(
+      toplevel,
+      thy1,
+      List[String](),
+      List[String]()
+    ).force.retrieveNow
     output
   }
-  
+
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {
     path_to_file = path
@@ -1196,11 +1255,11 @@ class IsaREPL(
   }
 
   def exit_isabelle(): String = {
-      // remove temp directory
-      cleanupAll()
-      // exit isabelle
-      isabelle.destroy()
-      "Destroyed"
+    // remove temp directory
+    cleanupAll()
+    // exit isabelle
+    isabelle.destroy()
+    "Destroyed"
   }
 
   if (debug) println("Checkpoint 15")
