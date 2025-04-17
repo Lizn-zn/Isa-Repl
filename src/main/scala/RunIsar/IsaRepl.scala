@@ -453,7 +453,6 @@ class IsaREPL(
         |  (* Final result with duplicates removed *)
         |  val res = var_decls 
         |    |> map ${Auto_Isabelle}.clean_theorem_text
-        |    |> map ${Auto_Isabelle}.clean_theorem_text
         |    |> distinct (op =);
         |  in
         |    res
@@ -474,7 +473,6 @@ class IsaREPL(
         |         |> map #1
         |         |> map (Thm.string_of_thm proof_context);
         | in
-        |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         | end""".stripMargin
     )
@@ -499,7 +497,6 @@ class IsaREPL(
         |       else
         |         ""
         | in
-        |     ${Auto_Isabelle}.clean_theorem_text conclusion
         |     ${Auto_Isabelle}.clean_theorem_text conclusion
         | end""".stripMargin
     )
@@ -543,8 +540,8 @@ class IsaREPL(
     if (debug) println("Checkpoint 9_4")
     for (theory_name <- header.imports) {
       if (importMap.contains(theory_name)) {
-        registers += s"${logic}.${importMap(theory_name)}"
-      } else registers += theory_name
+        registers += theory_name
+      } else registers += s"${logic}.${importMap(theory_name)}"
     }
     if (debug) println("Checkpoint 9_5")
     Ops
@@ -622,10 +619,11 @@ class IsaREPL(
     .filter(_.nonEmpty)
     .toList
   var importMap: Map[String, String] = Map()
-  for (theory_name <- theoryNames) {
-    val sanitisedName = sanitiseInDirectoryName(theory_name)
+  for (theory_dir <- theoryNames) {
+    val sanitisedName = sanitiseInDirectoryName(theory_dir)
+    println("sanitisedName: " + sanitisedName)
     if (available_imports(sanitisedName)) {
-      importMap += (theory_name.replace("\"", "") -> sanitisedName)
+      importMap += (theory_dir.replace("\"", "") -> sanitisedName)
     }
   }
   var top_level_state_map: Map[String, MLValue[ToplevelState]] = Map()
@@ -707,19 +705,6 @@ class IsaREPL(
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Commands")
   val Sledgehammer_Prover: String =
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
-
-  val Sledgehammer_Prover_Minimize: String =
-    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover_Minimize")
-
-  val Sledgehammer_Fact: String =
-    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Fact")
-
-  val Sledgehammer_MaSh: String =
-    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_MaSh")
-
-  val ATP_Util: String =
-    thy_for_sledgehammer.importMLStructureNow("ATP_Util")
-
   // prove_with_Sledgehammer is mostly identical to check_with_Sledgehammer except for that when the returned Boolean is true, it will
   // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
   // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".

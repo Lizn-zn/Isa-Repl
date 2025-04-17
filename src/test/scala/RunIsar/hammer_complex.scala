@@ -187,11 +187,9 @@ class HammerComplexTests extends AnyFunSuite {
     }
     assert(ok == false)
     val vars = isa_repl.extract_vars()
-    println(vars)
-    val assms = isa_repl.extract_assms()
-    println(assms)
+    assert(vars.contains("x :: nat \\<Rightarrow> int"))
     val goal = isa_repl.extract_goal()
-    println(goal)
+    assert (goal == "x 12 = x 11 - x 10 + x 9 - x 8")
     isa_repl.step("oops")
   }
 
