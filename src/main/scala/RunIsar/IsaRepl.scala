@@ -475,6 +475,7 @@ class IsaREPL(
         |         |> map (Thm.string_of_thm proof_context);
         | in
         |     map ${Auto_Isabelle}.clean_theorem_text assumptions
+        |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         | end""".stripMargin
     )
 
@@ -498,6 +499,7 @@ class IsaREPL(
         |       else
         |         ""
         | in
+        |     ${Auto_Isabelle}.clean_theorem_text conclusion
         |     ${Auto_Isabelle}.clean_theorem_text conclusion
         | end""".stripMargin
     )
