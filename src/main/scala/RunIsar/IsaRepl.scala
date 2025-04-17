@@ -453,7 +453,6 @@ class IsaREPL(
         |  (* Final result with duplicates removed *)
         |  val res = var_decls 
         |    |> map ${Auto_Isabelle}.clean_theorem_text
-        |    |> map ${Auto_Isabelle}.clean_theorem_text
         |    |> distinct (op =);
         |  in
         |    res
@@ -474,7 +473,6 @@ class IsaREPL(
         |         |> map #1
         |         |> map (Thm.string_of_thm proof_context);
         | in
-        |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         | end""".stripMargin
     )
@@ -499,7 +497,6 @@ class IsaREPL(
         |       else
         |         ""
         | in
-        |     ${Auto_Isabelle}.clean_theorem_text conclusion
         |     ${Auto_Isabelle}.clean_theorem_text conclusion
         | end""".stripMargin
     )
