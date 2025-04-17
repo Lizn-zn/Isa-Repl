@@ -18,12 +18,11 @@ class HammerComplexTests extends AnyFunSuite {
     debug = false
   )
 
-  // 1. compile the theory env
-  val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
-
   // test 1
   test("Hammer Complex No.1 from Isabelle proof") {
     // create the theorem to be proved
+  isa_repl.reset_isabelle(path_to_file)
+  val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
   isa_repl.step("""
                   lemma Node_7 : 
                   fixes e :: "complex" 
@@ -39,12 +38,13 @@ class HammerComplexTests extends AnyFunSuite {
     val (ok, result) = isa_repl.prove_by_hammer()
     assert(ok == true)
     val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
-    println(proof_string)
     val res: String = isa_repl.step(proof_string)
     assert(res == "")
   }
 
   test("Node_4: Complex square expansion") {
+    isa_repl.reset_isabelle(path_to_file)
+    val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
     isa_repl.step("""
       lemma Node_4 : 
       fixes e :: "complex" 
@@ -60,6 +60,8 @@ class HammerComplexTests extends AnyFunSuite {
   }
 
   test("Node_5: Complex square expansion with simplification") {
+    isa_repl.reset_isabelle(path_to_file)
+    val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
     isa_repl.step("""
       lemma Node_5 : 
       fixes e :: "complex" 
@@ -77,6 +79,8 @@ class HammerComplexTests extends AnyFunSuite {
   }
 
   test("Node_6: Complex square expansion with additional simplification") {
+    isa_repl.reset_isabelle(path_to_file)
+    val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
     isa_repl.step("""
       lemma Node_6 : 
       fixes e :: "complex" 
@@ -95,6 +99,8 @@ class HammerComplexTests extends AnyFunSuite {
   }
 
   test("Node_8: Complex square expansion with full simplification") {
+    isa_repl.reset_isabelle(path_to_file)
+    val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
     isa_repl.step("""
       lemma Node_8 : 
       fixes e :: "complex" 
@@ -111,6 +117,82 @@ class HammerComplexTests extends AnyFunSuite {
     val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
     val res: String = isa_repl.step(proof_string)
     assert(res == "")
+  }
+
+  test("Hammer Complex No.2 from Isabelle proof") {
+    isa_repl.reset_isabelle(path_to_file)
+    val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
+    isa_repl.step("""
+        theorem aimeII_2001_p3:
+          fixes x :: "nat \<Rightarrow> int"
+          assumes h0 : "x 1 = 211"
+            and h1 : "x 2 = 375"
+            and h2 : "x 3 = 420"
+            and h3 : "x 4 = 523"
+            and h4 : "\<And>(n::nat). ((n\<ge>5) \<Longrightarrow> (x n = x (n-1) - x (n-2) + x (n-3) - x (n-4)))"
+          shows "x 531 + x 753 + x 975 = 898"
+        proof
+        -
+          (* Compute the first few terms directly using the recurrence: *)
+          have step5: "x 5 = x 4 - x 3 + x 2 - x 1"
+            using rec[of 5] h1 h2 h3 h4 by simp
+          also have "... = 523 - 420 + 375 - 211" sorry
+          also have "... = 267" by simp
+          finally have x5: "x 5 = 267" .
+          
+          have step6: "x 6 = x 5 - x 4 + x 3 - x 2"
+            using rec[of 6] x5 h2 h3 h4 by simp
+          also have "... = 267 - 523 + 420 - 375" sorry
+          also have "... = (-211)" by simp
+          finally have x6: "x 6 = -211" .
+          
+          have step7: "x 7 = x 6 - x 5 + x 4 - x 3"
+            using rec[of 7] x5 x6 h3 h4 by simp
+          also have "... = (-211) - 267 + 523 - 420" sorry
+          also have "... = (-375)" by simp
+          finally have x7: "x 7 = -375" .
+          
+          have step8: "x 8 = x 7 - x 6 + x 5 - x 4"
+            using rec[of 8] x5 x6 x7 h4 by simp
+          also have "... = (-375) - (-211) + 267 - 523" sorry
+          also have "... = -420" by simp
+          finally have x8: "x 8 = -420" .
+          
+          have step9: "x 9 = x 8 - x 7 + x 6 - x 5"
+            using rec[of 9] x5 x6 x7 x8 sorry
+          also have "... = (-420) - (-375) + (-211) - 267" sorry
+          also have "... = (-523)" by simp
+          finally have x9: "x 9 = -523" .
+          
+          have step10: "x 10 = x 9 - x 8 + x 7 - x 6"
+            using rec[of 10] x6 x7 x8 x9 sorry
+          also have "... = (-523) - (-420) + (-375) - (-211)" sorry
+          also have "... = (-267)" by simp
+          finally have x10: "x 10 = -267" .
+          
+          have step11: "x 11 = x 10 - x 9 + x 8 - x 7"
+            using rec[of 11] x7 x8 x9 x10 sorry
+          also have "... = (-267) - (-523) + (-420) - (-375)" sorry
+          also have "... = 211" by simp
+          finally have x11: "x 11 = 211" .
+          
+          have step12: "x 12 = x 11 - x 10 + x 9 - x 8"
+            using rec[of 12] x8 x9 x10 x11 
+    """)
+    val (ok, result) = try {
+      isa_repl.prove_by_hammer()
+    } catch {
+      case e: Exception =>
+        (false, "")
+    }
+    assert(ok == false)
+    val vars = isa_repl.extract_vars()
+    println(vars)
+    val assms = isa_repl.extract_assms()
+    println(assms)
+    val goal = isa_repl.extract_goal()
+    println(goal)
+    isa_repl.step("oops")
   }
 
 }

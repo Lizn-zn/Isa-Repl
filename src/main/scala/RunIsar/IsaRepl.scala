@@ -14,9 +14,10 @@ import scala.concurrent.{
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 import sys.process._
-import _root_.java.nio.file.{Files, Path, StandardCopyOption}
+import _root_.java.nio.file.{Files, Path}
 import _root_.java.io.File
-import de.unruh.isabelle.control.Isabelle
+
+import de.unruh.isabelle.control.{Isabelle, IsabelleMLException}
 import de.unruh.isabelle.mlvalue.{
   AdHocConverter,
   MLFunction,
@@ -47,13 +48,20 @@ import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
-import de.unruh.isabelle.control.IsabelleMLException
 
 object Transition extends AdHocConverter("Toplevel.transition")
 object ProofState extends AdHocConverter("Proof.state")
 object RuntimeError extends AdHocConverter("Runtime.error")
 object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
+
+/**
+ * A wrapper exception class for IsabelleMLException that belongs to the RunIsar package.
+ * This allows for better exception handling and encapsulation of Isabelle-specific exceptions.
+ */
+class RunIsarMLException(message: String, cause: Throwable = null) extends Exception(message, cause) {
+  def this(original: IsabelleMLException) = this(original.getMessage, original)
+}
 
 class IsaREPL(
     var path_to_isa_bin: String,
@@ -85,9 +93,9 @@ class IsaREPL(
   val thy0 = Theory(autoIsaPath)
   val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
   // Compile useful ML functions
-  val num_of_processors: MLFunction0[Int] =
+  val num_of_processors : MLFunction0[Int] = 
     compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
-  val num_of_threads: MLFunction0[Int] =
+  val num_of_threads : MLFunction0[Int] = 
     compileFunction0[Int]("fn _ => Multithreading.max_threads ()")
   // Compile useful ML functions
   val script_thy: MLFunction2[String, Theory, Theory] =
@@ -237,8 +245,9 @@ class IsaREPL(
     } catch {
       case e: IsabelleMLException => {
         println("Name not found. Trying locales.")
+        throw new RunIsarMLException(e)
       }
-      case o: Throwable => { println(o) }
+      case o: Throwable => {println(o); throw o}
     }
     val relevant_locales = locales_defined_in_file(toplevel_state)
     // println(relevant_locales)
@@ -443,6 +452,7 @@ class IsaREPL(
         |  (* Final result with duplicates removed *)
         |  val res = var_decls 
         |    |> map ${Auto_Isabelle}.clean_theorem_text
+        |    |> map ${Auto_Isabelle}.clean_theorem_text
         |    |> distinct (op =);
         |  in
         |    res
@@ -463,6 +473,7 @@ class IsaREPL(
         |         |> map #1
         |         |> map (Thm.string_of_thm proof_context);
         | in
+        |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         | end""".stripMargin
     )
@@ -487,6 +498,7 @@ class IsaREPL(
         |       else
         |         ""
         | in
+        |     ${Auto_Isabelle}.clean_theorem_text conclusion
         |     ${Auto_Isabelle}.clean_theorem_text conclusion
         | end""".stripMargin
     )
@@ -730,8 +742,6 @@ class IsaREPL(
             |             val params = ${Sledgehammer_Commands}.default_params thy
             |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
             |                 ("timeout","30"),
-            |                 ("max_proofs", "1"),
-            |                 ("dont_preplay", "true"),
             |                 ("verbose","false")];
             |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
             |             val (result, (outcome, step)) = results;
@@ -739,22 +749,22 @@ class IsaREPL(
             |             (result, (${Sledgehammer}.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
             |           end;
             |    in
-            |      Timeout.apply (Time.fromSeconds 90) go_run (state, thy) end
+            |      go_run (state, thy) end
             |""".stripMargin
     )
-
+  
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
         |        let
         |          val proof_state = Toplevel.proof_of state;
-        |          val (success, method, step) = ${Auto_Isabelle}.try_close proof_state;
+        |          val (success, method, step) = ${Auto_Isabelle}.try_close (Time.fromSeconds 10) proof_state;
         |        in
         |          (success, method, ${Auto_Isabelle}.clean_theorem_text step)
         |        end
         |""".stripMargin
     )
-
+    
   val hammer_selected_facts
       : MLFunction4[ToplevelState, Theory, List[String], List[String], String] =
     compileFunction[ToplevelState, Theory, List[String], List[
@@ -811,7 +821,7 @@ class IsaREPL(
     top_level_state_map = Map()
   }
 
-  def reset_prob(): Unit = {
+  def reset_problem(): Unit = {
     thy1 = theoryManager.beginTheory(theoryStarter)
     toplevel = init_toplevel().force.retrieveNow
     reset_map()
@@ -985,7 +995,7 @@ class IsaREPL(
       top_level_state: ToplevelState,
       added_names: List[String],
       deleted_names: List[String],
-      timeout_in_millis: Int = 300000 // 300 seconds
+      timeout_in_millis: Int = 60000 // 60 seconds
   ): (Boolean, List[String]) = {
     if (debug) println("Checkpoint Hammer1: Begin normal_with_hammer")
     val f_res: Future[(Boolean, List[String])] = Future.apply {
@@ -1003,7 +1013,7 @@ class IsaREPL(
 
   def normal_with_try0(
       top_level_state: ToplevelState,
-      timeout_in_millis: Int = 10000 // 10 seconds
+      timeout_in_millis: Int = 12000 // 12 seconds
   ): (Boolean, String) = {
     val f_res: Future[(Boolean, String)] = Future.apply {
       val first_result = normal_with_try0(top_level_state).force.retrieveNow
@@ -1101,6 +1111,9 @@ class IsaREPL(
     accumulative_step_through_a_theorem
   }
 
+  
+  
+
   /* ==================================================================================
   The following functions are prepared interfaces for Isa-REPL
   1. compile(): None or String. If None, the original thy file is compiled. If String, the string is compiled.
@@ -1164,7 +1177,7 @@ class IsaREPL(
   }
 
   def step_without_timeout(isar_string: String): String = {
-    toplevel = step(isar_string, toplevel, 300000)
+    toplevel = step(isar_string, toplevel, 180000)
     getStateString
   }
 
@@ -1179,7 +1192,7 @@ class IsaREPL(
     (ok, results)
   }
 
-  def try_close(timeout_in_millis: Int = 10000): (Boolean, String) = {
+  def try_close(timeout_in_millis: Int = 12000): (Boolean, String) = {
     val (ok, result) = normal_with_try0(toplevel, timeout_in_millis)
     (ok, result)
   }
@@ -1255,23 +1268,17 @@ class IsaREPL(
   }
 
   def exit_isabelle(): String = {
-    // remove temp directory
-    cleanupAll()
-    // exit isabelle
-    isabelle.destroy()
-    "Destroyed"
+      // remove temp directory
+      cleanupAll()
+      // exit isabelle
+      isabelle.destroy()
+      "Destroyed"
   }
 
   if (debug) println("Checkpoint 15")
 
   // Manage top level states with the internal map
   def copy_tls: MLValue[ToplevelState] = toplevel.mlValue
-
-  def clone_tls(tls_name: String): Unit =
-    top_level_state_map += (tls_name -> copy_tls)
-
-  def clone_tls(old_name: String, new_name: String): Unit =
-    top_level_state_map += (new_name -> top_level_state_map(old_name))
 
   def _clone_tls_scala(tls_scala: ToplevelState): Future[ToplevelState] =
     ToplevelState.converter.retrieve(tls_scala.mlValue)
@@ -1288,8 +1295,24 @@ class IsaREPL(
   def retrieve_tls(tls_name: String): ToplevelState =
     Await.result(_retrieve_tls(tls_name), Duration.Inf)
 
-  def focus_tls(tls_name: String): Unit =
+  def clone_tls(tls_name: String): Unit = {
+    top_level_state_map += (tls_name -> copy_tls)
+  }
+
+  def clone_tls(old_name: String, new_name: String): Unit =
+    top_level_state_map += (new_name -> top_level_state_map(old_name))
+
+  def focus_tls(tls_name: String): Unit = {
     toplevel = retrieve_tls(tls_name)
+  }
+
+  def remove_tls(tls_name: String): Unit = {
+    if (top_level_state_map.contains(tls_name)) {
+      top_level_state_map -= tls_name
+      // wait for 100ms to ensure the tls is removed
+      Thread.sleep(100)
+    }
+  }
 
   def parse_entire_thy: List[String] =
     parse_text(thy1, fileContent).force.retrieveNow.map(_._2)
@@ -1300,3 +1323,5 @@ class IsaREPL(
   def get_num_of_threads: Int =
     num_of_threads().force.retrieveNow
 }
+
+

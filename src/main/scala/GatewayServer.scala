@@ -1,14 +1,13 @@
 package org.isarepl
 
 import py4j.GatewayServer
-import RunIsar.IsaREPL
-import de.unruh.isabelle.control.IsabelleMLException
+import RunIsar.{IsaREPL, RunIsarMLException}
+import scala.jdk.CollectionConverters._
 
 import java.nio.file.Paths
 import java.util
 import java.util.concurrent.TimeoutException
 import RunIsar.TempFileManager
-import scala.collection.JavaConverters._
 
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse(
@@ -30,9 +29,9 @@ class IsaReplApplication {
 
   def _initializeRepl(
       pathToFile: String,
+      workingDirectory: String,
       logic: String,
-      sessionRoots: util.ArrayList[String],
-      workingDirectory: String
+      sessionRoots: util.ArrayList[String]
   ): Unit = {
     repl = new IsaREPL(
       path_to_isa_bin = isabelleHome,
@@ -57,17 +56,17 @@ class IsaReplApplication {
       }
       TempFileManager.cleanupAll()
     } catch {
-      case e: Exception =>
+      case e: Exception => 
         println(s"Error during cleanup: ${e.getMessage}")
     }
   }
-
+  
   def _compile(): String = {
     val result =
       try {
         "True" + "<\\SEP>" + repl.compile()
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for compile the isar environment. Get msg: ${e.getMessage}"
       }
     result
@@ -78,7 +77,7 @@ class IsaReplApplication {
       try {
         "True" + "<\\SEP>" + repl.compile(isarProof)
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for compile the isar environment `$isarProof`. Get msg: ${e.getMessage}"
       }
     result
@@ -89,7 +88,7 @@ class IsaReplApplication {
       try {
         "True" + "<\\SEP>" + repl.step(command)
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
       }
     result
@@ -99,10 +98,12 @@ class IsaReplApplication {
     val result =
       try {
         "True" + "<\\SEP>" + repl.step_with_30s(command)
-      } catch {
-        case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
-      }
+    } catch {
+      case e: RunIsarMLException => 
+        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
+        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+    }
     result
   }
 
@@ -111,7 +112,7 @@ class IsaReplApplication {
       try {
         "True" + "<\\SEP>" + repl.step_without_timeout(command)
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
       }
     result
@@ -122,7 +123,7 @@ class IsaReplApplication {
       try {
         "True" + "<\\SEP>" + repl.translate_to_smt()
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for translate the goal to smt. Get msg: ${e.getMessage}"
       }
     result
@@ -138,7 +139,7 @@ class IsaReplApplication {
           "False" + "<\\SEP>" + results
         }
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
         case e: TimeoutException =>
           "False" + "<\\SEP>" + s"failed for prove the goal using hammer. Get msg: ${e.getMessage}"
@@ -147,20 +148,19 @@ class IsaReplApplication {
   }
 
   def _try_close(): String = {
-    val result =
-      try {
+    val result = try{
         val (ok, results) = repl.try_close()
         if (ok) {
           "True" + "<\\SEP>" + results
         } else {
           "False" + "<\\SEP>" + results
         }
-      } catch {
-        case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
-        case e: TimeoutException =>
-          "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
-      }
+    } catch {
+      case e: RunIsarMLException => 
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+      case e: TimeoutException =>
+        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+    }
     result
   }
 
@@ -169,7 +169,7 @@ class IsaReplApplication {
       try {
         "True" + "<\\SEP>" + repl.parse_to_steps(isar_string)
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for parse the isar proof to steps. Get msg: ${e.getMessage}"
       }
     result
@@ -181,7 +181,7 @@ class IsaReplApplication {
         val vars = repl.extract_vars()
         "True" + "<\\SEP>" + vars.mkString("<\\SEP>")
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for extract the vars. Get msg: ${e.getMessage}"
       }
     result
@@ -193,7 +193,7 @@ class IsaReplApplication {
         val assms = repl.extract_assms()
         "True" + "<\\SEP>" + assms.mkString("<\\SEP>")
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for extract the assms. Get msg: ${e.getMessage}"
       }
     result
@@ -205,7 +205,7 @@ class IsaReplApplication {
         val goal = repl.extract_goal()
         "True" + "<\\SEP>" + goal
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
       }
     result
@@ -224,10 +224,21 @@ class IsaReplApplication {
       try {
         repl.clone_tls(tls_name)
         "True"
-      } catch {
-        case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
-      }
+    } catch {
+      case e: RunIsarMLException => 
+        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+    }
+    result
+  }
+
+  def _remove_tls(tls_name: String): String = {
+    val result = try {
+        repl.remove_tls(tls_name)
+        "True"
+    } catch {
+      case e: RunIsarMLException => 
+        "False" + "<\\SEP>" + s"failed for remove the tls. Get msg: ${e.getMessage}"
+    }
     result
   }
 
@@ -237,7 +248,7 @@ class IsaReplApplication {
         repl.focus_tls(tls_name)
         "True"
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
       }
     result
@@ -253,7 +264,7 @@ class IsaReplApplication {
           "False" + "<\\SEP>" + "no additional messages"
         }
       } catch {
-        case e: IsabelleMLException =>
+        case e: RunIsarMLException =>
           "False" + "<\\SEP>" + s"failed for check if the subgoal is finished. Get msg: ${e.getMessage}"
       }
     result
@@ -283,6 +294,15 @@ object IsaReplGatewayServer {
             println(s"Error during shutdown: ${e.getMessage}")
             e.printStackTrace()
         }
+        try {
+          app._cleanup()
+          gateway.shutdown()
+          println("Server shutdown complete")
+        } catch {
+          case e: Exception =>
+            println(s"Error during shutdown: ${e.getMessage}")
+            e.printStackTrace()
+        }
       }
     })
 
@@ -300,6 +320,8 @@ object IsaReplGatewayServer {
       case e: Exception =>
         println(s"Server error: ${e.getMessage}")
         e.printStackTrace()
+        app._cleanup()
+        gateway.shutdown()
         app._cleanup()
         gateway.shutdown()
         System.exit(1)

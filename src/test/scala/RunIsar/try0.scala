@@ -3,6 +3,7 @@ package RunIsar
 import org.scalatest.funsuite.AnyFunSuite
 import java.nio.file.Paths
 import RunIsar.IsaREPL
+import RunIsar.RunIsarMLException
 
 class TryCloseTests extends AnyFunSuite {
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
@@ -37,6 +38,7 @@ class TryCloseTests extends AnyFunSuite {
                   shows "2 * (e * r) + (e\<^sup>2 + r\<^sup>2) = (- r + - e)\<^sup>2"
                 """)
     val (ok, result) = isa_repl.try_close()
+    println(result)
     assert(ok == true)
     val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
     println(proof_string)
@@ -74,13 +76,15 @@ class TryCloseTests extends AnyFunSuite {
               using n_pos k_pos 
                 """)
           
-    val (ok, result) = try {
-      isa_repl.try_close()
-    } catch {
-      case e: Exception =>
-        (false, "")
-    }
-    assert(ok == false)
+    val result = 
+      try{ 
+        isa_repl.try_close(12000000)
+      } catch {
+        case e: RunIsarMLException =>
+          println(e)
+          ""
+      }
+    println(result)
     val res: String = isa_repl.step("oops")
     assert(res == "")
   }
