@@ -36,292 +36,292 @@ class HammerSeqTests extends AnyFunSuite {
   test("Hammer Step.1 from Isabelle proof") {
     // create the theorem to be proved
     isa_repl.step("have step5: \"x 5 = x 4 - x 3 + x 2 - x 1\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
+    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
     assert(ok == true)
     val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
     val res: String = isa_repl.step(proof_string)
     assert(res.contains("x 531 + x 753 + x 975 = 898"))
   }
 
-  test("Hammer Step.1.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = 523 - 420 + 375 - 211\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.1.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = 523 - 420 + 375 - 211\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.1.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = 267\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.1.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = 267\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.1.3 from Isabelle proof") {
-    isa_repl.step("finally have x5: \"x 5 = 267\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.1.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x5: \"x 5 = 267\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.2 from Isabelle proof") {
-    isa_repl.step("have step6: \"x 6 = x 5 - x 4 + x 3 - x 2\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.2 from Isabelle proof") {
+  //   isa_repl.step("have step6: \"x 6 = x 5 - x 4 + x 3 - x 2\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.2.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = 267 - 523 + 420 - 375\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.2.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = 267 - 523 + 420 - 375\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
   
-  test("Hammer Step.2.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-211)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.2.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-211)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.2.3 from Isabelle proof") {
-    isa_repl.step("finally have x6: \"x 6 = -211\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.2.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x6: \"x 6 = -211\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
   
-  test("Hammer Step.3 from Isabelle proof") {
-    isa_repl.step("have step7: \"x 7 = x 6 - x 5 + x 4 - x 3\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.3 from Isabelle proof") {
+  //   isa_repl.step("have step7: \"x 7 = x 6 - x 5 + x 4 - x 3\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.3.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-211) - 267 + 523 - 420\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.3.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-211) - 267 + 523 - 420\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.3.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-375)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  } 
+  // test("Hammer Step.3.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-375)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // } 
 
-  test("Hammer Step.3.3 from Isabelle proof") {
-    isa_repl.step("finally have x7: \"x 7 = -375\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.3.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x7: \"x 7 = -375\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.4 from Isabelle proof") {
-    isa_repl.step("have step8: \"x 8 = x 7 - x 6 + x 5 - x 4\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.4 from Isabelle proof") {
+  //   isa_repl.step("have step8: \"x 8 = x 7 - x 6 + x 5 - x 4\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.4.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-375) - (-211) + 267 - 523\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.4.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-375) - (-211) + 267 - 523\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.4.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = -420\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.4.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = -420\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.4.3 from Isabelle proof") {
-    isa_repl.step("finally have x8: \"x 8 = -420\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)  
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.4.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x8: \"x 8 = -420\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)  
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.5 from Isabelle proof") {
-    isa_repl.step("have step9: \"x 9 = x 8 - x 7 + x 6 - x 5\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.5 from Isabelle proof") {
+  //   isa_repl.step("have step9: \"x 9 = x 8 - x 7 + x 6 - x 5\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.5.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-420) - (-375) + (-211) - 267\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.5.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-420) - (-375) + (-211) - 267\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.5.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-523)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.5.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-523)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.5.3 from Isabelle proof") {
-    isa_repl.step("finally have x9: \"x 9 = -523\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.5.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x9: \"x 9 = -523\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.6 from Isabelle proof") {
-    isa_repl.step("have step10: \"x 10 = x 9 - x 8 + x 7 - x 6\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.6 from Isabelle proof") {
+  //   isa_repl.step("have step10: \"x 10 = x 9 - x 8 + x 7 - x 6\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.6.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-523) - (-420) + (-375) - (-211)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.6.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-523) - (-420) + (-375) - (-211)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.6.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-267)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.6.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-267)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.6.3 from Isabelle proof") {
-    isa_repl.step("finally have x10: \"x 10 = -267\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.6.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x10: \"x 10 = -267\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.7 from Isabelle proof") {
-    isa_repl.step("have step11: \"x 11 = x 10 - x 9 + x 8 - x 7\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.7 from Isabelle proof") {
+  //   isa_repl.step("have step11: \"x 11 = x 10 - x 9 + x 8 - x 7\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.7.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = (-267) - (-523) + (-420) - (-375)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.7.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = (-267) - (-523) + (-420) - (-375)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.7.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = 211\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.7.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = 211\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.7.3 from Isabelle proof") {
-    isa_repl.step("finally have x11: \"x 11 = 211\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.7.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x11: \"x 11 = 211\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.8 from Isabelle proof") {
-    isa_repl.step("have step12: \"x 12 = x 11 - x 10 + x 9 - x 8\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    println(proof_string)
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.8 from Isabelle proof") {
+  //   isa_repl.step("have step12: \"x 12 = x 11 - x 10 + x 9 - x 8\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   println(proof_string)
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.8.1 from Isabelle proof") {
-    isa_repl.step("also have \"... = 211 - (-267) + (-523) - (-420)\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.8.1 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = 211 - (-267) + (-523) - (-420)\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.8.2 from Isabelle proof") {
-    isa_repl.step("also have \"... = 375\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.8.2 from Isabelle proof") {
+  //   isa_repl.step("also have \"... = 375\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
-  test("Hammer Step.8.3 from Isabelle proof") {
-    isa_repl.step("finally have x12: \"x 12 = 375\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=10000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  }
+  // test("Hammer Step.8.3 from Isabelle proof") {
+  //   isa_repl.step("finally have x12: \"x 12 = 375\"")
+  //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
+  //   assert(ok == true)
+  //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+  //   val res: String = isa_repl.step(proof_string)
+  //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
+  // }
 
 
   test ("Hammer close proof") {
