@@ -16,7 +16,7 @@ class TryCloseTests extends AnyFunSuite {
     path_to_isa_bin = path_to_isa_bin,
     path_to_file = path_to_file,
     working_directory = working_directory,
-    debug = true
+    debug = false
   )
 
   // 1. compile the theory env
@@ -38,10 +38,8 @@ class TryCloseTests extends AnyFunSuite {
                   shows "2 * (e * r) + (e\<^sup>2 + r\<^sup>2) = (- r + - e)\<^sup>2"
                 """)
     val (ok, result) = isa_repl.try_close()
-    println(result)
     assert(ok == true)
     val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
-    println(proof_string)
     val res: String = isa_repl.step(proof_string)
     assert(res == "")
   }

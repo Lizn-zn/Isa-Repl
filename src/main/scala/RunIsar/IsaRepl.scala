@@ -135,8 +135,7 @@ class IsaREPL(
         |  fun go_run (a, b, c) = Toplevel.command_exception a b c
         |  in Timeout.apply (Time.fromSeconds 30) go_run (int, tr, st) end""".stripMargin
     )
-  val command_errors: MLFunction3[
-    Boolean,
+  val command_errors: MLFunction3[Boolean,
     Transition.T,
     ToplevelState,
     (List[RuntimeError.T], Option[ToplevelState])
@@ -233,10 +232,7 @@ class IsaREPL(
         |     map (fn x => (#1 (#2 x))) (Thm_Deps.thm_deps thy thm)
         | end""".stripMargin
     )
-  def get_dependent_theorems(
-      tls_name: String,
-      theorem_name: String
-  ): List[String] = {
+  def get_dependent_theorems(tls_name: String, theorem_name: String): List[String] = {
     val toplevel_state = retrieve_tls(tls_name)
     // println("Retrieved top level")
     try {
@@ -327,10 +323,7 @@ class IsaREPL(
         |  flex inner_syntax
         |end""".stripMargin
     )
-  def get_all_definitions(
-      tls_name: String,
-      theorem_string: String
-  ): List[String] = {
+  def get_all_definitions(tls_name: String, theorem_string: String): List[String] = {
     val toplevel_state = retrieve_tls(tls_name)
     val quotation_split: List[String] = theorem_string.split('"').toList
     val all_inner_syntax = quotation_split.indices
@@ -514,130 +507,26 @@ class IsaREPL(
         | end""".stripMargin
     )
 
-  if (debug) println("Checkpoint 4: Theory management")
-  val header_read: MLFunction2[String, Position, TheoryHeader] =
-    compileFunction[String, Position, TheoryHeader](
-      "fn (text,pos) => Thy_Header.read pos text"
-    )
-
-  def getHeader(
-      source: Source
-  )(implicit isabelle: Isabelle, ec: ExecutionContext): TheoryHeader =
-    source match {
-      case Text(text, path, position) =>
-        Ops.header_read(text, position).retrieveNow
-    }
-
-  def beginTheory(
-      source: Source
-  )(implicit isabelle: Isabelle, ec: ExecutionContext): Theory = {
-    if (debug) println("Checkpoint 9_1")
-    val header = getHeader(source)
-    if (debug) println("Checkpoint 9_2")
-    val masterDir = source.path
-    if (debug) println("Checkpoint 9_3")
-    val registers: ListBuffer[String] = new ListBuffer[String]()
-    if (debug) println("Checkpoint 9_4")
-    for (theory_name <- header.imports) {
-      if (importMap.contains(theory_name)) {
-        registers += theory_name
-      } else registers += s"${logic}.${importMap(theory_name)}"
-    }
-    if (debug) println("Checkpoint 9_5")
-    Ops
-      .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
-      .force
-      .retrieveNow
-  }
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
   private var fileContent: String = Files.readString(Path.of(path_to_file))
   var fileContentCopy: String = fileContent
   if (debug) println("File content: " + fileContent)
 
-  if (debug) println("Checkpoint 6: Starter String")
-  private def getStarterString: String = {
-    val decoyThy: Theory = Theory("Main")
-    for (
-      (transition, text) <- parse_text(decoyThy, fileContent).force.retrieveNow
-    ) {
-      if (
-        text.contains("theory") && text.contains(currentTheoryName) && text
-          .contains("begin")
-      ) {
-        return text
-      }
-    }
-    "This is wrong!!!"
-  }
-  // starter_string is for example "theory Test imports Main HOL.Real begin"
-  val starter_string: String = getStarterString.trim.replaceAll("\n", " ").trim
-
-  // Find out what to import from the current directory
-  def getListOfTheoryFiles(dir: File): List[File] = {
-    if (dir.exists && dir.isDirectory) {
-      var listOfFilesBuffer: ListBuffer[File] = new ListBuffer[File]
-      for (f <- dir.listFiles()) {
-        if (f.isDirectory) {
-          val excludedDirs = Seq("AARCH64", "ARM_HYP", "RISCV64", "X64")
-          if (!excludedDirs.exists(f.getName.contains)) {
-            listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
-          }
-        } else if (f.toString.endsWith(".thy")) {
-          listOfFilesBuffer += f
-        }
-      }
-      listOfFilesBuffer.toList
-    } else {
-      List[File]()
-    }
-  }
-
-  def sanitiseInDirectoryName(fileName: String): String = {
-    fileName.replace("\"", "").split("/").last.split(".thy").head
-  }
-  if (debug) println("Checkpoint 8: Figure out imports")
-  // Figure out what theories to import
-  // available_files lists all files in working_dictionary
-  val available_files: List[File] = getListOfTheoryFiles(
-    new File(working_directory)
-  )
-  var available_imports_buffer: ListBuffer[String] = new ListBuffer[String]
-  for (file_name <- available_files) {
-    if (file_name.getName().endsWith(".thy")) {
-      available_imports_buffer =
-        available_imports_buffer += file_name.getName().split(".thy")(0)
-    }
-  }
-  var available_imports: Set[String] = available_imports_buffer.toSet
-  // theoryNames list all theory to be imported e.g., List(Main, HOL.Real)
-  val theoryNames: List[String] = starter_string
-    .split("imports")(1)
-    .split("begin")(0)
-    .split(" ")
-    .map(_.trim)
-    .filter(_.nonEmpty)
-    .toList
-  var importMap: Map[String, String] = Map()
-  for (theory_dir <- theoryNames) {
-    val sanitisedName = sanitiseInDirectoryName(theory_dir)
-    println("sanitisedName: " + sanitisedName)
-    if (available_imports(sanitisedName)) {
-      importMap += (theory_dir.replace("\"", "") -> sanitisedName)
-    }
-  }
   var top_level_state_map: Map[String, MLValue[ToplevelState]] = Map()
   if (debug) println("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
     path_to_isa_bin = path_to_isa_bin,
-    wd = working_directory,
+    path_to_file = path_to_file,
+    working_directory = working_directory,
     logic = logic,
-    sessionRoots = session_roots
+    sessionRoots = session_roots,
+    isabelle = isabelle,
+    debug = debug
   )
-  val theoryStarter: TheoryManager.Text =
-    TheoryManager.Text(starter_string, setup.workingDirectory.resolve(""))
-  var thy1: Theory = beginTheory(theoryStarter)
+
+  var thy1: Theory = theoryManager.beginTheory()
   if (debug) println("Checkpoint 9_6: Loading theory")
   thy1.await
   if (debug) println("Checkpoint 10: Loading theory finished")
@@ -709,9 +598,7 @@ class IsaREPL(
   // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
   // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".
   if (debug) println("Checkpoint 11")
-  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
-    String
-  ], List[String], (Boolean, (String, List[String]))] =
+  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[String], List[String], (Boolean, (String, List[String]))] =
     compileFunction[ToplevelState, Theory, List[String], List[
       String
     ], (Boolean, (String, List[String]))](
@@ -770,7 +657,7 @@ class IsaREPL(
   }
 
   def reset_problem(): Unit = {
-    thy1 = theoryManager.beginTheory(theoryStarter)
+    thy1 = theoryManager.beginTheory()
     toplevel = init_toplevel().force.retrieveNow
     reset_map()
   }
@@ -1061,7 +948,6 @@ class IsaREPL(
 
   
   
-
   /* ==================================================================================
   The following functions are prepared interfaces for Isa-REPL
   1. compile(): None or String. If None, the original thy file is compiled. If String, the string is compiled.
@@ -1204,7 +1090,7 @@ class IsaREPL(
     currentTheoryName = path_to_file.split("/").last.replace(".thy", "")
     fileContent = Files.readString(Path.of(path_to_file))
     fileContentCopy = fileContent
-    thy1 = theoryManager.beginTheory(theoryStarter)
+    thy1 = theoryManager.beginTheory()
     toplevel = init_toplevel().force.retrieveNow
     reset_map()
     "Reset"

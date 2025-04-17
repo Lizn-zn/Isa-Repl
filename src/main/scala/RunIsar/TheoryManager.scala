@@ -1,11 +1,13 @@
 package RunIsar
 
 import java.nio.file.{Path, Paths}
+import _root_.java.nio.file.{Files, Path}
+import _root_.java.io.File
+import scala.collection.mutable.ListBuffer
 
 import de.unruh.isabelle.control.{Isabelle, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.compileFunction
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader}
-import java.nio.file.{Path, Paths}
 import de.unruh.isabelle.control.{Isabelle, OperationCollection}
 import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
@@ -17,7 +19,6 @@ import de.unruh.isabelle.mlvalue.{
   Version
 }
 
-// import de.unruh.isabelle.experiments.ExecuteIsar.{command_exception, init_toplevel, parse_text, theorySource, toplevel_end_theory}
 import TheoryManager.{Heap, Source, Text}
 import TheoryManager.Ops
 
@@ -27,20 +28,32 @@ import de.unruh.isabelle.pure.Implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class TheoryManager(
-    var path_to_isa_bin: String,
-    var wd: String,
-    var logic: String,
-    var sessionRoots: List[String]
+    val path_to_isa_bin: String,
+    val path_to_file: String,
+    val working_directory: String,
+    val logic: String,
+    val sessionRoots: List[String],
+    implicit val isabelle: Isabelle,
+    val debug: Boolean = false
 ) {
-  val setup: Isabelle.Setup = Isabelle.Setup(
-    isabelleHome = Path.of(path_to_isa_bin),
-    sessionRoots = sessionRoots.map(s => Path.of(s)),
-    userDir = None,
-    logic = logic,
-    workingDirectory = Path.of(wd),
-    build = false
-  )
-  implicit val isabelle: Isabelle = new Isabelle(setup)
+  // val setup: Isabelle.Setup = Isabelle.Setup(
+  //   isabelleHome = Path.of(path_to_isa_bin),
+  //   sessionRoots = sessionRoots.map(s => Path.of(s)),
+  //   userDir = None,
+  //   logic = logic,
+  //   workingDirectory = Path.of(working_directory),
+  //   build = false
+  // )
+  // implicit val isabelle: Isabelle = new Isabelle(setup)
+
+  val currentTheoryName: String =
+    path_to_file.split("/").last.replace(".thy", "")
+
+  // Find out about the starter string
+  // filecontent is the content of thy file to be proved
+  private var fileContent: String = Files.readString(Path.of(path_to_file))
+  var fileContentCopy: String = fileContent
+  if (debug) println("File content: " + fileContent)
 
   val command_exception
       : MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
@@ -52,6 +65,11 @@ class TheoryManager(
       compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE")
     else
       compileFunction0[ToplevelState]("Toplevel.init_toplevel")
+  if (debug) println("Checkpoint 4: Theory management")
+  val header_read: MLFunction2[String, Position, TheoryHeader] =
+    compileFunction[String, Position, TheoryHeader](
+      "fn (text,pos) => Thy_Header.read pos text"
+    )
   val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
     compileFunction[Theory, String, List[(Transition.T, String)]]("""fn (thy, text) => let
       |  val transitions = Outer_Syntax.parse_text thy (K thy) Position.start text
@@ -64,6 +82,79 @@ class TheoryManager(
       |  in addtext (Symbol.explode text) transitions end""".stripMargin)
   val toplevel_end_theory: MLFunction[ToplevelState, Theory] =
     compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
+
+  if (debug) println("Checkpoint 6: Starter String")
+  private def getStarterString: String = {
+    val decoyThy: Theory = Theory("Main")
+    for (
+      (transition, text) <- parse_text(decoyThy, fileContent).force.retrieveNow
+    ) {
+      if (
+        text.contains("theory") && text.contains(currentTheoryName) && text
+          .contains("begin")
+      ) {
+        return text
+      }
+    }
+    "This is wrong!!!"
+  }
+  // starter_string is for example "theory Test imports Main HOL.Real begin"
+  val starter_string: String = getStarterString.trim.replaceAll("\n", " ").trim
+  val theoryStarter: TheoryManager.Text =
+    TheoryManager.Text(starter_string, Path.of(working_directory).resolve(""))
+
+  // Find out what to import from the current directory
+  def getListOfTheoryFiles(dir: File): List[File] = {
+    if (dir.exists && dir.isDirectory) {
+      var listOfFilesBuffer: ListBuffer[File] = new ListBuffer[File]
+      for (f <- dir.listFiles()) {
+        if (f.isDirectory) {
+          val excludedDirs = Seq("AARCH64", "ARM_HYP", "RISCV64", "X64")
+          if (!excludedDirs.exists(f.getName.contains)) {
+            listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
+          }
+        } else if (f.toString.endsWith(".thy")) {
+          listOfFilesBuffer += f
+        }
+      }
+      listOfFilesBuffer.toList
+    } else {
+      List[File]()
+    }
+  }
+
+  def sanitiseInDirectoryName(fileName: String): String = {
+    fileName.replace("\"", "").split("/").last.split(".thy").head
+  }
+  if (debug) println("Checkpoint 8: Figure out imports")
+  // Figure out what theories to import
+  // available_files lists all files in working_dictionary
+  val available_files: List[File] = getListOfTheoryFiles(
+    new File(working_directory)
+  )
+  var available_imports_buffer: ListBuffer[String] = new ListBuffer[String]
+  for (file_name <- available_files) {
+    if (file_name.getName().endsWith(".thy")) {
+      available_imports_buffer =
+        available_imports_buffer += file_name.getName().split(".thy")(0)
+    }
+  }
+  var available_imports: Set[String] = available_imports_buffer.toSet
+  // theoryNames list all theory to be imported e.g., List(Main, HOL.Real)
+  val theoryNames: List[String] = starter_string
+    .split("imports")(1)
+    .split("begin")(0)
+    .split(" ")
+    .map(_.trim)
+    .filter(_.nonEmpty)
+    .toList
+  var importMap: Map[String, String] = Map()
+  for (theory_dir <- theoryNames) {
+    val sanitisedName = sanitiseInDirectoryName(theory_dir)
+    if (available_imports(sanitisedName)) {
+      importMap += (theory_dir.replace("\"", "") -> sanitisedName)
+    }
+  }
 
   def getTheorySource(name: String): Source = Heap(name)
   def getTheory(source: Source)(implicit isabelle: Isabelle): Theory =
@@ -79,16 +170,23 @@ class TheoryManager(
         toplevel_end_theory(toplevel).retrieveNow.force
     }
 
-  def beginTheory(source: Source)(implicit isabelle: Isabelle): Theory = {
+  def beginTheory(source: Source = theoryStarter)(implicit isabelle: Isabelle): Theory = {
+    if (debug) println("Checkpoint 9_1")
     val header = getHeader(source)
-    val masterDir = source.path.getParent
-    // println(masterDir, header, header.imports.map(getTheorySource).map(getTheory))
+    if (debug) println("Checkpoint 9_2")
+    val masterDir = source.path
+    if (debug) println("Checkpoint 9_3")
+    val registers: ListBuffer[String] = new ListBuffer[String]()
+    if (debug) println("Checkpoint 9_4")
+    for (theory_name <- header.imports) {
+      if (importMap.contains(theory_name)) {
+        registers += theory_name
+      } else registers += s"${logic}.${importMap(theory_name)}"
+    }
+    if (debug) println("Checkpoint 9_5")
     Ops
-      .begin_theory(
-        masterDir,
-        header,
-        header.imports.map(getTheorySource).map(getTheory)
-      )
+      .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
+      .force
       .retrieveNow
   }
   def getHeader(source: Source)(implicit isabelle: Isabelle): TheoryHeader =
