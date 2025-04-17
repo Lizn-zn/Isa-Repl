@@ -1,8 +1,7 @@
 package org.isarepl
 
 import py4j.GatewayServer
-import RunIsar.IsaREPL
-import de.unruh.isabelle.control.IsabelleMLException
+import RunIsar.{IsaREPL, IsabelleMLException}
 
 import java.nio.file.Paths
 import java.util
