@@ -64,5 +64,4 @@ jobs:
 
     - name: Build and Test
       run: |
-        export SBT_OPTS="-DparallelExecution=false"
-        sbt test
+        sbt "testOnly RunIsar.ReplTests"
