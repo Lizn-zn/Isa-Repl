@@ -30,6 +30,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y sbt
 
+    - name: Install Isabelle
+      run: |
+        wget https://isabelle.in.tum.de/dist/Isabelle2024_linux.tar.gz
+        tar -xzf Isabelle2024_linux.tar.gz
+        echo "ISABELLE_HOME=$PWD/Isabelle2024" >> $GITHUB_ENV
+        echo "PATH=$PWD/Isabelle2024/bin:$PATH" >> $GITHUB_ENV
+
     - name: Cache SBT
       uses: actions/cache@v3
       with:
