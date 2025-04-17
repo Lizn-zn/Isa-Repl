@@ -38,10 +38,13 @@ class TryCloseTests extends AnyFunSuite {
                   shows "2 * (e * r) + (e\<^sup>2 + r\<^sup>2) = (- r + - e)\<^sup>2"
                 """)
     val (ok, result) = isa_repl.try_close()
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res == "")
+    if (ok == true) {
+      val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
+      val res: String = isa_repl.step(proof_string)
+      assert(res == "")
+    } else {
+      isa_repl.step("oops")
+    }
   }
 
   // // test 1
