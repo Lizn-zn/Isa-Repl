@@ -26,28 +26,28 @@ class ExtractHammerFactsTests extends AnyFunSuite {
   // test 1
   test("extract notforall goal from Isabelle proof") {
     // create the theorem to be proved
-    val result = isa_repl._extract_hammer_facts()
-    println("Extract fact result\n", result, "\n")
+    val result1 = isa_repl.extract_hammer_facts()
+    println("Extract fact result\n", result1, "\n")
 
     // extract again
-    val result = isa_repl._extract_hammer_facts()
-    println("Extract fact result\n", result, "\n")
+    val result2 = isa_repl.extract_hammer_facts()
+    println("Extract fact result\n", result2, "\n")
 
     // close the proof by a step
     val proof_step = "    using power3_eq_cube by auto"
-    isa_repl._step(proof_step)
+    isa_repl.step(proof_step)
 
     // start a new lemma
     val theorem = "lemma double_zero: \"2 * a = 0 ==> a = 0\" \n for a :: nat\n"
-    isa_repl._step(theorem)
+    isa_repl.step(theorem)
 
     // extract
-    val result = isa_repl._extract_hammer_facts()
-    println("Extract fact result\n", result, "\n")
+    val result3 = isa_repl.extract_hammer_facts()
+    println("Extract fact result\n", result3, "\n")
 
     // extract again
-    val result = isa_repl._extract_hammer_facts()
-    println("Extract fact result\n", result, "\n")
+    val result4 = isa_repl.extract_hammer_facts()
+    println("Extract fact result\n", result4, "\n")
   }
 
 

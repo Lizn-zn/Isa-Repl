@@ -25,6 +25,7 @@ import de.unruh.isabelle.mlvalue.{
   MLFunction2,
   MLFunction3,
   MLFunction4,
+  MLFunction5,
   MLValue,
   MLValueWrapper,
   Version
@@ -474,7 +475,6 @@ class IsaREPL(
         |         |> map (Thm.string_of_thm proof_context);
         | in
         |     map ${Auto_Isabelle}.clean_theorem_text assumptions
-        |     map ${Auto_Isabelle}.clean_theorem_text assumptions
         | end""".stripMargin
     )
 
@@ -498,7 +498,6 @@ class IsaREPL(
         |       else
         |         ""
         | in
-        |     ${Auto_Isabelle}.clean_theorem_text conclusion
         |     ${Auto_Isabelle}.clean_theorem_text conclusion
         | end""".stripMargin
     )
@@ -752,6 +751,18 @@ class IsaREPL(
             |      go_run (state, thy) end
             |""".stripMargin
     )
+
+  val parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[String], List[String], String] =
+    compileFunction[ToplevelState, Theory, String, List[String], List[String], String](
+      s"""fn (state, thy, filter, adds, dels) =>
+        |    let
+        |      val proof_state = Toplevel.proof_of state;
+        |      val facts = ${Auto_Isabelle}.retrive_facts proof_state thy filter adds dels;
+        |    in
+        |      facts
+        |    end
+        |""".stripMargin
+    )
   
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
@@ -763,56 +774,6 @@ class IsaREPL(
         |          (success, method, ${Auto_Isabelle}.clean_theorem_text step)
         |        end
         |""".stripMargin
-    )
-    
-  val hammer_selected_facts
-      : MLFunction4[ToplevelState, Theory, List[String], List[String], String] =
-    compileFunction[ToplevelState, Theory, List[String], List[
-      String
-    ], String](
-      s"""
-              |        fn (state, thy, adds, dels) =>
-              |let
-              |  val p_state = Toplevel.proof_of state
-              |  val ctxt = Proof.context_of p_state
-              |  fun get_refs_and_token_lists (name) = (Facts.named name, []);
-              |  val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
-              |  val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
-              |  val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
-              |  val params = ${Sledgehammer_Commands}.default_params thy
-              |    [("provers", "cvc5 vampire verit e spass z3 zipperposition"),("timeout","25"),("verbose","true")];
-              |  val state_string = XML.content_of (YXML.parse_body (Toplevel.string_of_state state))
-              |   val {verbose, spy, provers, falsify, induction_rules, max_facts,
-              |    max_proofs, slices, timeout, ...} = params
-              |
-              |  val inst_inducts = induction_rules = SOME ${Sledgehammer_Prover}.Instantiate
-              |        val {facts = chained_thms, goal, ...} = Proof.goal p_state
-              |        val (_, hyp_ts, concl_t) = ${ATP_Util}.strip_subgoal goal 1 ctxt
-              |        val _ =
-              |          (case find_first (not o  ${Sledgehammer_Prover_Minimize}.is_prover_supported ctxt) provers of
-              |            SOME name => error ("No such prover: " ^ name)
-              |          | NONE => ())
-              |        val ({elapsed, ...}, all_facts) = Timing.timing
-              |
-              |          (${Sledgehammer_Fact}.nearly_all_facts_of_context ctxt inst_inducts override chained_thms hyp_ts) concl_t
-              | val max_max_facts =
-              |              (case max_facts of
-              |                SOME n => n
-              |              | NONE =>
-              |                fold (fn prover =>
-              |                      fold (fn ((_, _, _, max_facts, _), _) => Integer.max max_facts)
-              |                    ( ${Sledgehammer_Prover_Minimize}.get_slices ctxt prover))
-              |                  provers 0)
-              |              * 51 div 50
-              |  val ({elapsed, ...}, factss) = Timing.timing
-              |              (${Sledgehammer_MaSh}.relevant_facts ctxt params (hd provers) max_max_facts override hyp_ts concl_t)
-              |              all_facts
-              | val induction_rules = the_default (${Sledgehammer_Prover}.Exclude) induction_rules
-              |            val factss = map (apsnd (${Sledgehammer_Prover}.maybe_filter_out_induction_rules induction_rules)) factss
-              |            val fact_string = ${Sledgehammer}.string_of_factss factss
-              |in fact_string
-              |          end
-              |""".stripMargin
     )
 
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
@@ -1245,13 +1206,8 @@ class IsaREPL(
     get_dependent_thms(toplevel, theorem_name).force.retrieveNow
   }
 
-  def extract_hammer_facts(): String = {
-    val output = hammer_selected_facts(
-      toplevel,
-      thy1,
-      List[String](),
-      List[String]()
-    ).force.retrieveNow
+  def extract_hammer_facts(filter: String = "mepo", adds: List[String] = List[String](), dels: List[String] = List[String]()): String = {
+    val output = parse_hammer_facts(toplevel, thy1, filter, adds, dels).force.retrieveNow
     output
   }
 

@@ -9,6 +9,7 @@ structure Auto_Isabelle : sig
   val clean_theorem_text : string -> string
   type result = {name: string, command: string, time: int, state: Proof.state}
   val try_close : Time.time -> Proof.state ->  bool * string * string
+  val retrive_facts : Proof.state -> theory -> string ->  string list -> string list -> string 
 end = struct
 
 fun clean_theorem_text (thm_text : string) = 
@@ -105,5 +106,38 @@ fun try_close timeout st =
   in
     poll 0.1
   end
-   
+
+(* 
+  retrive facts from the proof state
+  filter: string, the filter to use
+  adds: string list, the facts to add
+  dels: string list, the facts to delete
+*)
+
+fun get_refs_and_token_lists (name) = (Facts.named name, []);
+
+fun retrive_facts state thy filter adds dels  = 
+  let
+     val ctxt = Proof.context_of state;
+     val {facts = chained_thms, goal, ...} = Proof.goal state;
+     val (_, hyp_ts, concl_t) = ATP_Util.strip_subgoal goal 1 ctxt;
+     val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
+     val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
+     val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
+     val params = Sledgehammer_Commands.default_params thy
+                  [("fact_filter", filter)];
+     val {induction_rules, max_facts, ...} = params;
+     val all_facts = (Sledgehammer_Fact.nearly_all_facts_of_context ctxt false override chained_thms hyp_ts) concl_t;
+     val max_num_facts = (case max_facts of
+                              SOME n => n
+                            | NONE => 2048)
+     val fact_lst = (Sledgehammer_MaSh.relevant_facts ctxt params "" max_num_facts override hyp_ts concl_t)
+                            all_facts
+     val induction_rules = the_default (Sledgehammer_Prover.Exclude) induction_rules
+     val factss = map (apsnd (Sledgehammer_Prover.maybe_filter_out_induction_rules induction_rules)) fact_lst
+     val fact_string = Sledgehammer.string_of_factss factss
+  in 
+     fact_string
+  end
+
 end
