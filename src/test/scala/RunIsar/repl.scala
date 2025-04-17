@@ -62,8 +62,10 @@ class ReplTests extends AnyFunSuite {
     assert (result5.contains("x\\<^sup>2 = x * x"))
   }
 
-  test("Prove the lemma again") {
-    val proof_string5 = "by (simp add: power2_eq_square)"
+  test("Prove the lemma by hammer") {
+    val (ok, result) = isa_repl.prove_by_hammer()
+    assert(ok == true)
+    val proof_string5 = result.replace("Try this:", "").replaceAll("\\(\\d+.\\d+ ms\\)", "")
     val result6: String = isa_repl.step(proof_string5)
     assert (result6.contains("x ^ 3 = x * x * x"))
   }
