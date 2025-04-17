@@ -9,7 +9,7 @@ structure Auto_Isabelle : sig
   val clean_theorem_text : string -> string
   type result = {name: string, command: string, time: int, state: Proof.state}
   val try_close : Time.time -> Proof.state ->  bool * string * string
-  val retrive_facts : Proof.state -> theory -> string ->  string list -> string list -> string 
+  val retrieve_facts : Proof.state -> theory -> string ->  string list -> string list -> string 
 end = struct
 
 fun clean_theorem_text (thm_text : string) = 
@@ -116,7 +116,7 @@ fun try_close timeout st =
 
 fun get_refs_and_token_lists (name) = (Facts.named name, []);
 
-fun retrive_facts state thy filter adds dels  = 
+fun retrieve_facts state thy filter adds dels  = 
   let
      val ctxt = Proof.context_of state;
      val {facts = chained_thms, goal, ...} = Proof.goal state;

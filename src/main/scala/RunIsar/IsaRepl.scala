@@ -757,7 +757,7 @@ class IsaREPL(
       s"""fn (state, thy, filter, adds, dels) =>
         |    let
         |      val proof_state = Toplevel.proof_of state;
-        |      val facts = ${Auto_Isabelle}.retrive_facts proof_state thy filter adds dels;
+        |      val facts = ${Auto_Isabelle}.retrieve_facts proof_state thy filter adds dels;
         |    in
         |      facts
         |    end
