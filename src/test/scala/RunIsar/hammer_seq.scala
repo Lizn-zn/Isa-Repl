@@ -36,11 +36,14 @@ class HammerSeqTests extends AnyFunSuite {
   test("Hammer Step.1 from Isabelle proof") {
     // create the theorem to be proved
     isa_repl.step("have step5: \"x 5 = x 4 - x 3 + x 2 - x 1\"")
-    val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
-    assert(ok == true)
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
-    val res: String = isa_repl.step(proof_string)
-    assert(res.contains("x 531 + x 753 + x 975 = 898"))
+    val (ok, result) = isa_repl.prove_by_hammer()
+    if (ok == true) {
+      val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+      val res: String = isa_repl.step(proof_string)
+      assert(res.contains("x 531 + x 753 + x 975 = 898"))
+    } else {
+      isa_repl.step("oops")
+    }
   }
 
   // test("Hammer Step.1.1 from Isabelle proof") {

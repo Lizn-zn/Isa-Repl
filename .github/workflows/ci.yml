@@ -45,8 +45,8 @@ jobs:
       id: isabelle-cache
       uses: actions/cache@v3
       with:
-        path: Isabelle2025
-        key: isabelle-2025-${{ runner.os }}-${{ hashFiles('**/Isabelle2025_linux.tar.gz') }}
+        path: Isabelle2024
+        key: isabelle-2024-${{ runner.os }}-${{ hashFiles('**/Isabelle2024_linux.tar.gz') }}
 
     - name: Install Isabelle
       if: steps.isabelle-cache.outputs.cache-hit != 'true'
