@@ -403,7 +403,6 @@ class IsaREPL(
   val parse_vars: MLFunction[ToplevelState, List[String]] =
     compileFunction[ToplevelState, List[String]](
       s"""fn (toplevel_state) =>
-      s"""fn (toplevel_state) =>
         |  let
         |    val p_state = Toplevel.proof_of toplevel_state;
         |    val ctxt = Proof.context_of p_state;
@@ -463,7 +462,6 @@ class IsaREPL(
   val parse_assms: MLFunction[ToplevelState, List[String]] =
     compileFunction[ToplevelState, List[String]](
       s"""fn (toplevel_state) =>
-      s"""fn (toplevel_state) =>
         | let
         |     (* Extract proof state and context *)
         |     val proof_state = Toplevel.proof_of toplevel_state;
@@ -482,7 +480,6 @@ class IsaREPL(
 
   val parse_goal: MLFunction[ToplevelState, String] =
     compileFunction[ToplevelState, String](
-      s"""fn (toplevel_state) =>
       s"""fn (toplevel_state) =>
         | let
         |     (* Extract proof state and context *)
