@@ -63,4 +63,6 @@ jobs:
         isabelle version
 
     - name: Build and Test
-      run: sbt test
+      run: |
+        export SBT_OPTS="-DparallelExecution=false"
+        sbt test

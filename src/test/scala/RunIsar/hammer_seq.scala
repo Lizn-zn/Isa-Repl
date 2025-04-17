@@ -41,8 +41,6 @@ class HammerSeqTests extends AnyFunSuite {
       val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
       val res: String = isa_repl.step(proof_string)
       assert(res.contains("x 531 + x 753 + x 975 = 898"))
-    } else {
-      isa_repl.step("oops")
     }
   }
 
