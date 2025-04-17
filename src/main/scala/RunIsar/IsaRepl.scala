@@ -679,7 +679,6 @@ class IsaREPL(
             |             val params = ${Sledgehammer_Commands}.default_params thy
             |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
             |                 ("timeout","30"),
-            |                 ("max_proofs", "1"),
             |                 ("verbose","false")];
             |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
             |             val (result, (outcome, step)) = results;
