@@ -1,0 +1,121 @@
+import os
+import re
+from py4j.java_gateway import JavaGateway, GatewayParameters, GatewayClient
+from py4j.java_collections import ListConverter
+
+# Connect to the JVM
+gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_convert=True))
+
+# Get the IsaREPL application
+isa_repl = gateway.entry_point
+
+# Initialize REPL with a theory file
+theory_file = os.path.abspath("/home/hbd/verification/l4v/proof/refine/ARM/CSpace_R.thy")
+
+# print(theory_file)
+
+isa_repl._initializeRepl(theory_file, "Refine", ["/home/hbd/verification/l4v"], "/home/hbd/verification/l4v")
+
+with open(theory_file, "r", encoding="utf-8") as f:
+    content = f.read()
+
+# Compile the theory file
+steps = isa_repl._parse_to_steps(content).split("<\\SEP>")
+# Add a proof step
+for i, step in enumerate(steps):
+    print(i, step)
+
+
+def replaced_by_sorry(isar_commands: list[str]):
+    keywords = [
+        "apply", "supply", "subgoal", "using", "unfolding",
+        "proof", "qed", "done",
+        "{", "}", "next", "note",
+        "let", "write", "fix", "assume", "then",
+        "have", "show",
+        "fix", "assume", "then", "have", "show", "using", "unfolding",
+        "proof", "qed", "next", "note", "let", "write",
+        "from", "with",
+        "also", "finally", "moreover", "ultimately",
+        "presume", "define", "consider", "obtain", "case",
+        "typ", "term", "prop", "thm", "print_statement",
+        "apply", "apply_end", "supply", "subgoal", "defer", "prefer",
+        "back", "done", "oops", "hence", "thus", ".", "..", "and",
+        "include", "including", "is", "interpret",
+        "by"
+    ]
+    depth = 0
+    in_notepad = False
+    notepad_depth = -1
+    replaced_commands = []
+    i, length = 0, len(isar_commands)
+    while i < length:
+        if i == 210:
+            pass
+        if isar_commands[i].endswith("begin"):
+            depth += 1
+        if isar_commands[i].strip() == "end":
+            if depth == notepad_depth and in_notepad:
+                in_notepad = False
+            depth -= 1
+        if isar_commands[i].startswith("notepad"):
+            in_notepad = not in_notepad
+            notepad_depth = depth
+        if not in_notepad:
+            if any([re.split(r'[ ()]+', isar_commands[i].strip())[0] == keyword for keyword in keywords]):
+                to_be_replaced = []
+                while i < length and any(
+                        [re.split(r'[ ()\n]+', isar_commands[i].strip())[0] == keyword for keyword in keywords]):
+                    to_be_replaced.append(isar_commands[i])
+                    i += 1
+                replaced_commands.append("sorry")
+            else:
+                replaced_commands.append(isar_commands[i])
+                i += 1
+        else:
+            replaced_commands.append(isar_commands[i])
+            i += 1
+    return replaced_commands
+
+
+def is_comment(isar_command: str):
+    stripped = isar_command.strip()
+    return stripped.startswith("(*") and stripped.endswith("*)")
+
+
+def delete_comments(isar_commands: list[str]):
+    result = []
+    for command in isar_commands:
+        if is_comment(command):
+            continue
+        result.append(command)
+    return result
+
+
+steps = delete_comments(steps)
+steps = replaced_by_sorry(steps)
+
+# all_steps_str = "\n".join(steps[1:])
+# print(isa_repl._step(all_steps_str))
+
+for i, step in enumerate(steps):
+    print(i, step)
+
+plain = False
+
+if plain:
+    for i, step in enumerate(steps):
+        print(i, step, "\n", isa_repl._step(steps[i]))
+else:
+    i, unprocessed, attached_num = 1, '', 0
+    while i < len(steps):
+        result = isa_repl._step(unprocessed + steps[i])
+        if "False<\\SEP>" in result:
+            unprocessed += steps[i] + '\n'
+            attached_num += 1
+        else:
+            print(i, unprocessed + steps[i], "\n", result)
+            unprocessed = ''
+            attached_num = 0
+        i += 1
+

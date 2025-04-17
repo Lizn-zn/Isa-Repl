@@ -12,28 +12,30 @@ def run_jar_file(jar_path, port):
     time.sleep(2)
     return process
 
+
 ### test the isapy connection
 def isapy_repl(port):
     gateway = JavaGateway(gateway_parameters=GatewayParameters(port=port))
     isa_repl = gateway.entry_point
     return isa_repl
 
+
 def test_proof(isa_repl):
     # Initialize REPL with a theory file
-    theory_file = os.path.abspath("python-test/Test.thy")
-    isa_repl.initializeRepl(theory_file)
+    theory_file = os.path.abspath("../python-test/Test.thy")
+    isa_repl._initializeRepl(theory_file)
             
     # Compile the theory file
-    result = isa_repl.compile()
+    result = isa_repl._compile()
     print("Compilation result:", result)
             
     # Create and prove a theorem
     theorem = "lemma fixes x :: int shows \"x ^ 3 = x * x * x\" \n proof- \n"
-    result = isa_repl.step(theorem)
+    result = isa_repl._step(theorem)
     print("Theorem declaration result:", result)
             
     # Add a proof step
-    result = isa_repl.translate_to_smt()
+    result = isa_repl._translate_to_smt()
     print("SMT translation result:", result)
 
 
@@ -43,7 +45,8 @@ Test the IsaREPL server with a sub-repl connection
     and py4j to connect to the server
 """
 if __name__ == "__main__":
-    jar_path = "target/IsaREPL.jar"
+    print(__file__)
+    jar_path = "../target/IsaREPL.jar"
     port = 25555
     
     # Start the JVM server

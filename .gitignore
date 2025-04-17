@@ -1,4 +1,11 @@
+.gitignore
 project/project/*
 project/target/*
+**/project/metals.sbt
 target/*
+.idea/
 !target/IsaREPL.jar
+.vscode/
+.metals/
+/python-test/python-test.iml
+.bsp/
