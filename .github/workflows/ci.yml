@@ -51,10 +51,10 @@ jobs:
     - name: Install Isabelle
       if: steps.isabelle-cache.outputs.cache-hit != 'true'
       run: |
-        wget https://isabelle.in.tum.de/dist/Isabelle2025_linux.tar.gz
-        tar -xzf Isabelle2025_linux.tar.gz
-        echo "ISABELLE_HOME=$PWD/Isabelle2025" >> $GITHUB_ENV
-        echo "PATH=$PWD/Isabelle2025/bin:$PATH" >> $GITHUB_ENV
+        wget https://isabelle.in.tum.de/website-Isabelle2024/dist/Isabelle2024_linux.tar.gz
+        tar -xzf Isabelle2024_linux.tar.gz
+        echo "ISABELLE_HOME=$PWD/Isabelle2024" >> $GITHUB_ENV
+        echo "PATH=$PWD/Isabelle2024/bin:$PATH" >> $GITHUB_ENV
 
     - name: Verify Isabelle Installation
       run: |
