@@ -55,6 +55,7 @@ jobs:
       run: |
         wget https://isabelle.in.tum.de/website-Isabelle2024/dist/Isabelle2024_linux.tar.gz
         tar -xzf Isabelle2024_linux.tar.gz
+        chmod -R +x Isabelle2024/bin
 
     - name: Verify Isabelle Installation
       run: |
@@ -66,12 +67,17 @@ jobs:
           echo "Error: isabelle executable not found!"
           exit 1
         fi
+        if [ ! -x "Isabelle2024/bin/isabelle" ]; then
+          echo "Error: isabelle executable is not executable!"
+          exit 1
+        fi
         echo "ISABELLE_HOME=$PWD/Isabelle2024" >> $GITHUB_ENV
-        echo "ISABELLE_HOME/bin" >> $GITHUB_PATH
+        echo "$PWD/Isabelle2024/bin" >> $GITHUB_PATH
 
     - name: Verify Isabelle Environment
       run: |
         echo "ISABELLE_HOME: $ISABELLE_HOME"
+        echo "PATH: $PATH"
         which isabelle
         isabelle version
 
