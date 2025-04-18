@@ -11,7 +11,7 @@ class ReplTests extends AnyFunSuite {
   val path_to_isa_bin: String = isabelleHome_str
 
   val path_to_file : String = Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get(isabelleHome_str, "./src/HOL").toAbsolutePath.toString
+  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
     path_to_isa_bin = path_to_isa_bin,
     path_to_file = path_to_file,
@@ -65,7 +65,9 @@ class ReplTests extends AnyFunSuite {
   test("Prove the lemma by hammer") {
     val (ok, result) = isa_repl.prove_by_hammer()
     assert(ok == true)
-    val proof_string5 = result.replace("Try this:", "").replaceAll("\\(\\d+.\\d+ ms\\)", "")
+    val proof_string5 = result.replace("Try this:", "")
+                              .replaceAll("\\(\\d+.\\d+ ms\\)", "")
+                              .replaceAll("\\(\\d+ ms\\)", "")
     val result6: String = isa_repl.step(proof_string5)
     assert (result6.contains("x ^ 3 = x * x * x"))
   }

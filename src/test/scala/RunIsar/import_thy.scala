@@ -11,7 +11,7 @@ class ImportsThyTests extends AnyFunSuite {
   val path_to_isa_bin: String = isabelleHome_str
 
   val path_to_file : String = Paths.get("python-test/Test_Afp.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get(isabelleHome_str, "./src/HOL").toAbsolutePath.toString
+  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
     path_to_isa_bin = path_to_isa_bin,
     path_to_file = path_to_file,
@@ -21,7 +21,7 @@ class ImportsThyTests extends AnyFunSuite {
 
   // test 1
   test("Compile the theory env") {
-    val result0: String = isa_repl.compile(""" theory test_afp imports Complex_Main "HOL-Computational_Algebra.Computational_Algebra"
+    val result0: String = isa_repl.compile(""" theory test_afp imports "HOL-Computational_Algebra.Computational_Algebra"
 	    "HOL-Number_Theory.Number_Theory"  begin """)
     assert (result0 == "")
   }

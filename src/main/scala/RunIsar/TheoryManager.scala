@@ -1,7 +1,5 @@
 package RunIsar
 
-import RunIsar.RunIsarMLException
-
 import java.nio.file.{Path, Paths}
 import _root_.java.nio.file.{Files, Path}
 import _root_.java.io.File
@@ -26,6 +24,15 @@ import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 
+/* 
+For TheoryManager
+  path_to_file: the file to be proved
+  working_directory: the directory containing all .thy files to be imported
+  logic: the logic to be used
+  sessionRoots: the session roots to be used
+  debug: whether to print debug information
+ */
+
 class TheoryManager(
     val path_to_isa_bin: String,
     val path_to_file: String,
@@ -35,15 +42,9 @@ class TheoryManager(
     implicit val isabelle: Isabelle,
     val debug: Boolean = false
 ) {
-  // val setup: Isabelle.Setup = Isabelle.Setup(
-  //   isabelleHome = Path.of(path_to_isa_bin),
-  //   sessionRoots = sessionRoots.map(s => Path.of(s)),
-  //   userDir = None,
-  //   logic = logic,
-  //   workingDirectory = Path.of(working_directory),
-  //   build = false
-  // )
-  // implicit val isabelle: Isabelle = new Isabelle(setup)
+  if (working_directory.contains(path_to_isa_bin)) {
+    throw new Exception("working_directory should not be set in the same directory as isabelleHome")
+  }
 
   val currentTheoryName: String =
     path_to_file.split("/").last.replace(".thy", "")
@@ -127,7 +128,7 @@ class TheoryManager(
   }
   if (debug) println("Checkpoint 8: Figure out imports")
   // Figure out what theories to import
-  // available_files lists all files in working_dictionary
+  // available_files lists all files in working_directory
   val available_files: List[File] = getListOfTheoryFiles(
     new File(working_directory)
   )
@@ -179,8 +180,8 @@ class TheoryManager(
     if (debug) println("Checkpoint 9_4")
     for (theory_name <- header.imports) {
       if (importMap.contains(theory_name)) {
-        registers += theory_name
-      } else registers += s"${logic}.${importMap(theory_name)}"
+        registers += s"${logic}.${importMap(theory_name)}"
+      } else registers += theory_name
     }
     if (debug) println("Checkpoint 9_5")
     try {
@@ -190,7 +191,7 @@ class TheoryManager(
       .retrieveNow
     } catch {
       case e: IsabelleMLException =>
-        throw new RunIsarMLException(s"Failed to begin theory ${source.path}" + e.getMessage)
+        throw e
     }
   }
   def getHeader(source: Source)(implicit isabelle: Isabelle): TheoryHeader =

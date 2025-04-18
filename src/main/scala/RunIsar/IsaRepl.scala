@@ -46,7 +46,6 @@ import de.unruh.isabelle.pure.{
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
 import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
-import RunIsar.RunIsarMLException
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
@@ -70,6 +69,34 @@ class IsaREPL(
   var currentTheoryName: String =
     path_to_file.split("/").last.replace(".thy", "")
   val isabelleHome: Path = Paths.get(path_to_isa_bin)
+  /** Configuration for initializing an [[Isabelle]] instance.
+   *
+   * (The fields of this class are documents in the source code. I am not sure why they do not occur in the
+   * generated API doc.)
+   *
+   * @param workingDirectory Working directory in which the Isabelle process should run. (Default:
+   *                         working directory of the Scala process.) All other paths described
+   *                         below are interpreted relative to `workingDirectory` (unless they are absolute).
+   * @param isabelleHome Path to the Isabelle distribution
+   * @param logic Heap image to load in Isabelle (e.g., `HOL`, `HOL-Analysis`, etc.)
+   * @param sessionRoots Additional session directories in which Isabelle will search for sessions
+   *                     (must contain `ROOT` files and optionally `ROOTS` files, see the Isabelle system manual).
+   *                     Default: no additional session directories
+   * @param userDir User configuration directory for Isabelle. Must end in `/.isabelle` if provided.
+   *                None (default) means to let Isabelle chose the default location.
+   *                Here Isabelle stores user configuration and heap images (unless
+   *                the location of the heap images is configured differently, see the Isabelle system manual)
+   * @param build This option has currently no effect. The heap is always built. Old documentation:
+   *
+   *              Whether to build the Isabelle heap before running Isabelle. If false, the heap will never be
+   *              built. (This means changes in the Isabelle theories will not be reflected. And if the heap was never
+   *              built, the Isabelle process fails.) If true, the Isabelle build command will be invoked. That
+   *              command automatically checks for changed dependencies but may add a noticable delay even if
+   *              the heap was already built.
+   * @param exceptionManager See [[SetupGeneral.exceptionManager]]
+   * @param verbose Makes Isabelle run in verbose mode. (Only affects debug output, and only during build.)
+   * @param isabelleCommandHandler See [[SetupGeneral.isabelleCommandHandler]]
+   */
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
     workingDirectory = Path.of(working_directory),
@@ -235,7 +262,7 @@ class IsaREPL(
     } catch {
       case e: IsabelleMLException => {
         println("Name not found. Trying locales.")
-        throw new RunIsarMLException(e)
+        throw e
       }
       case o: Throwable => {println(o); throw o}
     }

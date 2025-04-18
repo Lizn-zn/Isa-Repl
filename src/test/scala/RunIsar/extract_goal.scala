@@ -10,7 +10,7 @@ class ExtractGoalTests extends AnyFunSuite {
   val path_to_isa_bin: String = isabelleHome_str
 
   val path_to_file : String = Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get(isabelleHome_str, "./src/HOL").toAbsolutePath.toString
+  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
     path_to_isa_bin = path_to_isa_bin,
     path_to_file = path_to_file,
