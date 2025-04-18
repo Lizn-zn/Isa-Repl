@@ -124,7 +124,8 @@ class TheoryManager(
   }
 
   def sanitiseInDirectoryName(fileName: String): String = {
-    fileName.replace("\"", "").split("/").last.split(".thy").head
+    val name = fileName.replace("\"", "").split("/").last.split(".thy").head
+    if (name.contains(".")) name.split("\\.").last else name
   }
   if (debug) println("Checkpoint 8: Figure out imports")
   // Figure out what theories to import
