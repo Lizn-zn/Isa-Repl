@@ -53,8 +53,11 @@ jobs:
       run: |
         wget https://isabelle.in.tum.de/website-Isabelle2024/dist/Isabelle2024_linux.tar.gz
         tar -xzf Isabelle2024_linux.tar.gz
-        echo "ISABELLE_HOME=$PWD/Isabelle2024" >> $GITHUB_ENV
-        echo "PATH=$PWD/Isabelle2024/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Set up Isabelle environment
+      run: |
+        echo "ISABELLE_HOME=$(pwd)/Isabelle2023" >> $GITHUB_ENV
+        echo "PATH=$ISABELLE_HOME/bin:$PATH" >> $GITHUB_ENV
 
     - name: Verify Isabelle Installation
       run: |
@@ -66,8 +69,12 @@ jobs:
       run: |
         sbt "testOnly RunIsar.ReplTests"
 
+    - name: Install Python dependencies
+      run: |
+        pip install pytest
+
     - name: Run Python Tests
       run: |
         sbt assembly
         echo "ISA_REPL_PATH=$PWD/target/IsaREPL.jar" >> $GITHUB_ENV
-        python python-test/test_repl.py
+        python -m pytest python-test/test_repl.py
