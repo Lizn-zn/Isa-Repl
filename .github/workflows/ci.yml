@@ -67,7 +67,7 @@ jobs:
           exit 1
         fi
         echo "ISABELLE_HOME=$PWD/Isabelle2024" >> $GITHUB_ENV
-        echo "PATH=$ISABELLE_HOME/bin:$PATH" >> $GITHUB_ENV
+        echo "ISABELLE_HOME/bin" >> $GITHUB_PATH
 
     - name: Verify Isabelle Environment
       run: |
