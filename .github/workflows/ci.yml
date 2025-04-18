@@ -53,6 +53,13 @@ jobs:
       run: |
         wget https://isabelle.in.tum.de/website-Isabelle2024/dist/Isabelle2024_linux.tar.gz
         tar -xzf Isabelle2024_linux.tar.gz
+        cd Isabelle2024
+        ./bin/isabelle install -p default
+
+    - name: Initialize Isabelle
+      run: |
+        cd Isabelle2024
+        ./bin/isabelle install -p default
 
     - name: Set up Isabelle environment
       run: |
@@ -62,8 +69,7 @@ jobs:
     - name: Verify Isabelle Installation
       run: |
         echo "ISABELLE_HOME: $ISABELLE_HOME"
-        which isabelle
-        isabelle version
+        
 
     - name: Build and Test
       run: |
