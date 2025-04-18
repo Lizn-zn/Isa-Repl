@@ -49,7 +49,7 @@ class IsaReplApplication {
     }
   }
 
-  def _cleanup(): Unit = {
+  def _exit(): Unit = {
     try {
       if (repl != null) {
         repl.exit_isabelle()
@@ -286,7 +286,7 @@ object IsaReplGatewayServer {
       override def run(): Unit = {
         println("\nReceived shutdown signal - terminating gracefully...")
         try {
-          app._cleanup()
+          app._exit()
           gateway.shutdown()
           println("Server shutdown complete")
         } catch {
@@ -295,7 +295,7 @@ object IsaReplGatewayServer {
             e.printStackTrace()
         }
         try {
-          app._cleanup()
+          app._exit()
           gateway.shutdown()
           println("Server shutdown complete")
         } catch {
@@ -320,9 +320,9 @@ object IsaReplGatewayServer {
       case e: Exception =>
         println(s"Server error: ${e.getMessage}")
         e.printStackTrace()
-        app._cleanup()
+        app._exit()
         gateway.shutdown()
-        app._cleanup()
+        app._exit()
         gateway.shutdown()
         System.exit(1)
     } finally {

@@ -64,5 +64,10 @@ jobs:
 
     - name: Build and Test
       run: |
-        export SBT_OPTS="-DparallelExecution=false"
-        sbt test
+        sbt "testOnly RunIsar.ReplTests"
+
+    - name: Run Python Tests
+      run: |
+        sbt assembly
+        echo "ISA_REPL_PATH=$PWD/target/IsaREPL.jar" >> $GITHUB_ENV
+        python python-test/test_repl.py
