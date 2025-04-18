@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: 
+      - main 
+      - ci_test
   pull_request:
     branches: [ main ]
 
@@ -56,7 +58,7 @@ jobs:
 
     - name: Set up Isabelle environment
       run: |
-        echo "ISABELLE_HOME=$(pwd)/Isabelle2023" >> $GITHUB_ENV
+        echo "ISABELLE_HOME=$(pwd)/Isabelle2024" >> $GITHUB_ENV
         echo "PATH=$ISABELLE_HOME/bin:$PATH" >> $GITHUB_ENV
 
     - name: Verify Isabelle Installation
