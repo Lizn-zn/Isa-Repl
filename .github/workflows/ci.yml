@@ -32,22 +32,31 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y sbt
 
+    - name: Cache SBT
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.sbt
+          ~/.ivy2/cache
+          ~/.coursier/cache/v1
+        key: ${{ runner.os }}-sbt-${{ hashFiles('**/*.sbt') }}-${{ hashFiles('project/build.properties') }}
+
     - name: Cache Isabelle
       id: isabelle-cache
       uses: actions/cache@v3
       with:
-        path: Isabelle2024_linux.tar.gz
-        key: isabelle-2024-tar
+        path: Isabelle2024
+        key: isabelle-2024-${{ runner.os }}-${{ hashFiles('**/Isabelle2024_linux.tar.gz') }}
 
     - name: Install Isabelle
       if: steps.isabelle-cache.outputs.cache-hit != 'true'
       run: |
         wget https://isabelle.in.tum.de/website-Isabelle2024/dist/Isabelle2024_linux.tar.gz
-
-    - name: Extract and Initialize Isabelle
-      run: |
         tar -xzf Isabelle2024_linux.tar.gz
-        echo "ISABELLE_HOME=$PWD/Isabelle2024" >> $GITHUB_ENV
+
+    - name: Set up Isabelle environment
+      run: |
+        echo "ISABELLE_HOME=$(pwd)/Isabelle2023" >> $GITHUB_ENV
         echo "PATH=$ISABELLE_HOME/bin:$PATH" >> $GITHUB_ENV
 
     - name: Verify Isabelle Installation
@@ -55,7 +64,17 @@ jobs:
         echo "ISABELLE_HOME: $ISABELLE_HOME"
         which isabelle
         isabelle version
-        
 
     - name: Build and Test
-      run: sbt test
+      run: |
+        sbt "testOnly RunIsar.ReplTests"
+
+    - name: Install Python dependencies
+      run: |
+        pip install pytest
+
+    - name: Run Python Tests
+      run: |
+        sbt assembly
+        echo "ISA_REPL_PATH=$PWD/target/IsaREPL.jar" >> $GITHUB_ENV
+        python -m pytest python-test/test_repl.py

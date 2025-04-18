@@ -46,6 +46,7 @@ import de.unruh.isabelle.pure.{
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
 import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
+import RunIsar.RunIsarMLException
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
@@ -55,14 +56,6 @@ object ProofState extends AdHocConverter("Proof.state")
 object RuntimeError extends AdHocConverter("Runtime.error")
 object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
-
-/**
- * A wrapper exception class for IsabelleMLException that belongs to the RunIsar package.
- * This allows for better exception handling and encapsulation of Isabelle-specific exceptions.
- */
-class RunIsarMLException(message: String, cause: Throwable = null) extends Exception(message, cause) {
-  def this(original: IsabelleMLException) = this(original.getMessage, original)
-}
 
 class IsaREPL(
     var path_to_isa_bin: String,

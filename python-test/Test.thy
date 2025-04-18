@@ -1,2 +1,2 @@
-theory Test imports Complex_Main  
+theory Test imports Complex_Main
  begin

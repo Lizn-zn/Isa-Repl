@@ -1,16 +1,15 @@
 package RunIsar
 
+import RunIsar.RunIsarMLException
+
 import java.nio.file.{Path, Paths}
 import _root_.java.nio.file.{Files, Path}
 import _root_.java.io.File
 import scala.collection.mutable.ListBuffer
 
-import de.unruh.isabelle.control.{Isabelle, OperationCollection}
-import de.unruh.isabelle.mlvalue.MLValue.compileFunction
-import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader}
-import de.unruh.isabelle.control.{Isabelle, OperationCollection}
-import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
+import de.unruh.isabelle.control.{Isabelle, OperationCollection, IsabelleMLException}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
+import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.mlvalue.{
   MLFunction,
   MLFunction0,
@@ -124,8 +123,7 @@ class TheoryManager(
   }
 
   def sanitiseInDirectoryName(fileName: String): String = {
-    val name = fileName.replace("\"", "").split("/").last.split(".thy").head
-    if (name.contains(".")) name.split("\\.").last else name
+    fileName.replace("\"", "").split("/").last.split(".thy").head
   }
   if (debug) println("Checkpoint 8: Figure out imports")
   // Figure out what theories to import
@@ -185,10 +183,15 @@ class TheoryManager(
       } else registers += s"${logic}.${importMap(theory_name)}"
     }
     if (debug) println("Checkpoint 9_5")
-    Ops
-      .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
-      .force
+    try {
+      Ops
+        .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
+        .force
       .retrieveNow
+    } catch {
+      case e: IsabelleMLException =>
+        throw new RunIsarMLException(s"Failed to begin theory ${source.path}" + e.getMessage)
+    }
   }
   def getHeader(source: Source)(implicit isabelle: Isabelle): TheoryHeader =
     source match {

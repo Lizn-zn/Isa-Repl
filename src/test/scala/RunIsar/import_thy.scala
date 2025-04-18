@@ -33,5 +33,22 @@ class ImportsThyTests extends AnyFunSuite {
     isa_repl.step("sorry")
   }
 
+  test("Prove the theorem") {
+    val steps = List(
+    """ proof - """,
+    """have A: "{n :: nat. 2 \<le> n \<and> n dvd 91 \<and> n dvd 455} \<subseteq> {7, 13, 91}"""",
+    """proof""",
+    """fix x :: nat""",
+    """assume H: "x \<in> {n :: nat. 2 \<le> n \<and> n dvd 91 \<and> n dvd 455}""",
+    """then have "x dvd 91" by simp""",
+    """then obtain k :: nat where "91 = x * k" unfolding dvd_def by blast""",
+    """then have "x \<in> {1,7,13,91}" by auto"""
+    )
+    for (step <- steps) {
+      val result2: String = isa_repl.step(step)
+      println(result2)
+    }
+  }
+
 
 }
