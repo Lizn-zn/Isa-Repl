@@ -88,9 +88,19 @@ jobs:
     - name: Install Python dependencies
       run: |
         pip install pytest
+        pip install py4j
+
+    - name: Build JAR
+      run: |
+        sbt assembly
+        JAR_PATH=$(find target -name "IsaREPL.jar" | head -n 1)
+        if [ -z "$JAR_PATH" ]; then
+          echo "Error: JAR file not found!"
+          exit 1
+        fi
+        echo "JAR_PATH=$PWD/$JAR_PATH" >> $GITHUB_ENV
 
     - name: Run Python Tests
       run: |
-        sbt assembly
-        echo "ISA_REPL_PATH=$PWD/target/IsaREPL.jar" >> $GITHUB_ENV
+        echo "ISA_REPL_PATH: $JAR_PATH"
         python -m pytest python-test/test_repl.py
