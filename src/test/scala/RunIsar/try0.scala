@@ -3,7 +3,7 @@ package RunIsar
 import org.scalatest.funsuite.AnyFunSuite
 import java.nio.file.Paths
 import RunIsar.IsaREPL
-import RunIsar.RunIsarMLException
+import RunIsar.Exceptions.IsabelleMLException
 
 class TryCloseTests extends AnyFunSuite {
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
@@ -11,7 +11,7 @@ class TryCloseTests extends AnyFunSuite {
   val path_to_isa_bin: String = isabelleHome_str
 
   val path_to_file : String = Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get(isabelleHome_str, "./src/HOL").toAbsolutePath.toString
+  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
     path_to_isa_bin = path_to_isa_bin,
     path_to_file = path_to_file,
@@ -77,7 +77,7 @@ class TryCloseTests extends AnyFunSuite {
   //     try{ 
   //       isa_repl.try_close(12000000)
   //     } catch {
-  //       case e: RunIsarMLException =>
+  //       case e: IsabelleMLException =>
   //         println(e)
   //         ""
   //     }
