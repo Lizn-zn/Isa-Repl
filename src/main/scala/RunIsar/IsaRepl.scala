@@ -46,6 +46,7 @@ import de.unruh.isabelle.pure.{
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
 import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
+import RunIsar.RunIsarMLException
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
