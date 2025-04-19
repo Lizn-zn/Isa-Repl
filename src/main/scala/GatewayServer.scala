@@ -5,7 +5,7 @@ import RunIsar.{IsaREPL, TempFileManager}
 import RunIsar.Exceptions.IsabelleMLException
 import scala.jdk.CollectionConverters._
 
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 import java.util
 import java.util.concurrent.TimeoutException
 
@@ -14,8 +14,13 @@ class IsaReplApplication {
     "ISABELLE_HOME",
     throw new Exception("ISABELLE_HOME not set")  
   )
-  val workingDirectory: String =
-    Paths.get(isabelleHome, "./src/HOL").toAbsolutePath.toString
+  val workingDirectory: String = {
+    val path = Paths.get("/tmp/IsaREPL/")
+    if (!Files.exists(path)) {
+      Files.createDirectories(path)
+    }
+    path.toAbsolutePath.toString
+  }
 
   private var repl: IsaREPL = _
 

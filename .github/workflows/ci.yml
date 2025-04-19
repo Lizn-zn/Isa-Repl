@@ -103,4 +103,7 @@ jobs:
     - name: Run Python Tests
       run: |
         echo "ISA_REPL_PATH: $ISA_REPL_PATH"
-        python -m pytest python-test/test_repl.py
+        echo "ISABELLE_HOME: $ISABELLE_HOME"
+        echo "PATH: $PATH"
+        cd $GITHUB_WORKSPACE
+        ISABELLE_HOME=$ISABELLE_HOME ISA_REPL_PATH=$ISA_REPL_PATH python -m pytest python-test/test_repl.py -v
