@@ -253,6 +253,15 @@ class IsaREPL(
         |     map (fn x => (#1 (#2 x))) (Thm_Deps.thm_deps thy thm)
         | end""".stripMargin
     )
+  val get_dependent_thms_with_thy_names: MLFunction2[ToplevelState, String, List[String]] =
+    compileFunction[ToplevelState, String, List[String]](
+      """fn (tls, name) =>
+        | let val thy = Toplevel.theory_of tls;
+        |     val thm = Global_Theory.get_thms thy name;
+        | in
+        |     map (fn x => String.concat [#theory_name (#1 x), "<\\INNER_SEP>", (#1 (#2 x))]) (Thm_Deps.thm_deps thy thm)
+        | end""".stripMargin
+    )
   def get_dependent_theorems(tls_name: String, theorem_name: String): List[String] = {
     val toplevel_state = retrieve_tls(tls_name)
     // println("Retrieved top level")
@@ -290,6 +299,24 @@ class IsaREPL(
     }
 
     dep_thms
+  }
+
+  def get_dependent_theorems_with_theory_names(tls_name: String, theorem_name: String): List[String] = {
+    val toplevel_state = retrieve_tls(tls_name)
+    // println("Retrieved top level")
+    try {
+      val dependent_thms =
+        get_dependent_thms_with_thy_names(toplevel_state, theorem_name).force.retrieveNow
+      return dependent_thms
+    } catch {
+      case e: IsabelleMLException => {
+        println("Name not found. Trying locales.")
+        throw new RunIsarMLException(e)
+      }
+      case o: Throwable => {
+        println(o); throw o
+      }
+    }
   }
 
   val get_used_consts: MLFunction2[ToplevelState, String, List[String]] =
@@ -657,6 +684,18 @@ class IsaREPL(
         |      facts
         |    end
         |""".stripMargin
+    )
+
+  val parse_hammer_facts_with_theory_names: MLFunction5[ToplevelState, Theory, String, List[String], List[String], String] =
+    compileFunction[ToplevelState, Theory, String, List[String], List[String], String](
+      s"""fn (state, thy, filter, adds, dels) =>
+         |    let
+         |      val proof_state = Toplevel.proof_of state;
+         |      val facts = ${Auto_Isabelle}.retrieve_facts_with_theory proof_state thy filter adds dels;
+         |    in
+         |      facts
+         |    end
+         |""".stripMargin
     )
   
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
@@ -1103,6 +1142,14 @@ class IsaREPL(
   def extract_hammer_facts(filter: String = "mepo", adds: List[String] = List[String](), dels: List[String] = List[String]()): String = {
     val output = parse_hammer_facts(toplevel, thy1, filter, adds, dels).force.retrieveNow
     output
+  }
+
+  def extract_thm_deps_with_thy_names(theorem_name: String): List[String] = {
+    get_dependent_thms_with_thy_names(toplevel, theorem_name).force.retrieveNow
+  }
+
+  def extract_hammer_facts_with_thy_names(filter: String = "mesh", adds: List[String] = List[String](), dels: List[String] = List[String]()): String = {
+    val output = parse_hammer_facts_with_theory_names(toplevel, thy1, filter, adds, dels).force.retrieveNow
   }
 
   // reset isabelle and thy to be proved
