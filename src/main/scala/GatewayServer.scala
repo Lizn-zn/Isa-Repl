@@ -216,12 +216,76 @@ class IsaReplApplication {
     result
   }
 
-  def _extract_thm_deps(isarString: String): List[String] = {
-    repl.extract_thm_deps(isarString)
+  def _extract_thm_deps(isarString: String): String = {
+    val result =
+      try {
+        val dep_thm_lst = repl.extract_thm_deps(isarString)
+        "True" + "<\\SEP>" + dep_thm_lst.mkString("<\\SEP>")
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract dependent theorems. Get msg: ${e.getMessage}"
+      }
+    result
   }
 
   def _extract_hammer_facts(): String = {
-    repl.extract_hammer_facts()
+    val result =
+      try {
+        val facts = repl.extract_hammer_facts()
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
+  def _extract_thm_deps_with_thy_names(isarString: String): String = {
+    val result =
+      try {
+        val dep_thm_lst = repl.extract_thm_deps_with_thy_names(isarString)
+        "True" + "<\\SEP>" + dep_thm_lst.mkString("<\\SEP>")
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract dependent theorems. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
+  def _extract_hammer_facts_with_thy_names(): String = {
+    val result =
+      try {
+        val facts = repl.extract_hammer_facts_with_thy_names()
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
+  def _extract_hammer_facts_with_thy_names(filter: String): String = {
+    val result =
+      try {
+        val facts = repl.extract_hammer_facts_with_thy_names(filter)
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
+  def _extract_hammer_facts_with_thy_names(filter: String, adds: List[String], dels: List[String]): String = {
+    val result =
+      try {
+        val facts = repl.extract_hammer_facts_with_thy_names()
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
+      }
+    result
   }
 
   def _clone_tls(tls_name: String): String = {
