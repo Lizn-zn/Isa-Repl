@@ -1153,6 +1153,22 @@ class IsaREPL(
     output
   }
 
+  def extract_thm_defined_in_parent(): List[String] = {
+    val get_parent_thy_thm_pairs: MLFunction[Theory, List[String]] =
+      compileFunction[Theory, List[String]](
+        s""" fn (thy) =>
+          | let
+          |   val parents_of_thy = Theory.parents_of thy;
+          |   val first_parent = List.nth (parents_of_thy, 0);
+          |   val thms = Global_Theory.dest_thm_names first_parent;
+          | in
+          |    map (fst o snd) thms
+          | end
+          |""".stripMargin
+      )
+    get_parent_thy_thm_pairs(thy1).force.retrieveNow
+  }
+
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {
     path_to_file = path
