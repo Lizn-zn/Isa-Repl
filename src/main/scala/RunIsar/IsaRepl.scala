@@ -691,7 +691,7 @@ class IsaREPL(
       s"""fn (state, thy, filter, adds, dels) =>
          |    let
          |      val proof_state = Toplevel.proof_of state;
-         |      val facts = ${Auto_Isabelle}.retrieve_facts_with_theory proof_state thy filter adds dels;
+         |      val facts = ${Auto_Isabelle}.retrieve_facts_with_theory_names proof_state thy filter adds dels;
          |    in
          |      facts
          |    end
@@ -1150,6 +1150,7 @@ class IsaREPL(
 
   def extract_hammer_facts_with_thy_names(filter: String = "mesh", adds: List[String] = List[String](), dels: List[String] = List[String]()): String = {
     val output = parse_hammer_facts_with_theory_names(toplevel, thy1, filter, adds, dels).force.retrieveNow
+    output
   }
 
   // reset isabelle and thy to be proved

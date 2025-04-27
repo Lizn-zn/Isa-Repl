@@ -14,7 +14,7 @@ theory_file = os.path.abspath("/home/hbd/verification/l4v/proof/refine/ARM/CSpac
 
 # print(theory_file)
 
-isa_repl._initializeRepl(theory_file, "Refine", ["/home/hbd/verification/l4v"], "/home/hbd/verification/l4v")
+isa_repl._initializeRepl(theory_file, "/home/hbd/verification/l4v", "Refine", ["/home/hbd/verification/l4v"])
 
 with open(theory_file, "r", encoding="utf-8") as f:
     content = f.read()

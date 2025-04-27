@@ -10,7 +10,7 @@ structure Auto_Isabelle : sig
   type result = {name: string, command: string, time: int, state: Proof.state}
   val try_close : Time.time -> Proof.state ->  bool * string * string
   val retrieve_facts : Proof.state -> theory -> string ->  string list -> string list -> string 
-  val retrieve_facts_with_theory_name : Proof.state -> theory -> string ->  string list -> string list -> string
+  val retrieve_facts_with_theory_names : Proof.state -> theory -> string ->  string list -> string list -> string
 end = struct
 
 fun clean_theorem_text (thm_text : string) = 
@@ -142,8 +142,8 @@ fun retrieve_facts state thy filter adds dels  =
   end
 
 fun string_of_facts_with_theory_names filter facts =
-  "Selected " ^ string_of_int (length facts) ^ " " ^ (if filter = "" then "" else filter ^ " ") ^
-  "fact" ^ Sledgehammer_Util.plural_s (length facts) ^ ": " ^ (space_implode " " (map (fn x => String.concat [(Thm.theory_long_name (#2 x)), "<\\INNER_SEP>", (Thm.derivation_name (#2 x)), "<\\INNER_SEP>", #1 (#1 x)]) facts))
+  string_of_int (length facts) ^ "<\\SEP>" ^ (if filter = "" then "" else filter ^ " ") ^ "<\\SEP>" ^ 
+  (space_implode "<\\SEP>" (map (fn x => String.concat [(Thm.theory_long_name (#2 x)), "<\\INNER_SEP>", (Thm.derivation_name (#2 x)), "<\\INNER_SEP>", #1 (#1 x)]) facts))
 
 fun string_of_factss_with_theory_names factss =
   if forall (null o snd) factss then

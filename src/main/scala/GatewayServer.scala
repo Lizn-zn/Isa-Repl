@@ -222,7 +222,7 @@ class IsaReplApplication {
         val dep_thm_lst = repl.extract_thm_deps(isarString)
         "True" + "<\\SEP>" + dep_thm_lst.mkString("<\\SEP>")
       } catch {
-        case e: RunIsarMLException =>
+        case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for extract dependent theorems. Get msg: ${e.getMessage}"
       }
     result
@@ -231,10 +231,10 @@ class IsaReplApplication {
   def _extract_hammer_facts(): String = {
     val result =
       try {
-        val facts_lst = repl.extract_hammer_facts()
-        "True" + "<\\SEP>" + facts_lst.mkString("<\\SEP>")
+        val facts = repl.extract_hammer_facts()
+        "True" + "<\\SEP>" + facts
       } catch {
-        case e: RunIsarMLException =>
+        case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
       }
     result
@@ -246,7 +246,7 @@ class IsaReplApplication {
         val dep_thm_lst = repl.extract_thm_deps_with_thy_names(isarString)
         "True" + "<\\SEP>" + dep_thm_lst.mkString("<\\SEP>")
       } catch {
-        case e: RunIsarMLException =>
+        case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for extract dependent theorems. Get msg: ${e.getMessage}"
       }
     result
@@ -255,10 +255,10 @@ class IsaReplApplication {
   def _extract_hammer_facts_with_thy_names(): String = {
     val result =
       try {
-        val facts_lst = repl.extract_hammer_facts_with_thy_names()
-        "True" + "<\\SEP>" + facts_lst.mkString("<\\SEP>")
+        val facts = repl.extract_hammer_facts_with_thy_names()
+        "True" + "<\\SEP>" + facts
       } catch {
-        case e: RunIsarMLException =>
+        case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
       }
     result
