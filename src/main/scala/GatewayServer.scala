@@ -288,6 +288,18 @@ class IsaReplApplication {
     result
   }
 
+  def _extract_thms_defined_in_parent(): String = {
+    val result =
+      try {
+        val facts = repl.extract_thm_defined_in_parent().mkString("<\\SEP>")
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract theorems from parent. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
   def _clone_tls(tls_name: String): String = {
     val result =
       try {
