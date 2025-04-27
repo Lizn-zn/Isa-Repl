@@ -115,7 +115,7 @@ else:
     while i < len(steps):
         result = isa_repl._step(unprocessed + steps[i])
         if target in unprocessed + steps[i]:
-            result = isa_repl._extract_hammer_facts_with_thy_names()
+            result = isa_repl._extract_hammer_facts_with_thy_names("mesh")
             result_lst = result.split("<\\SEP>")
             print(result_lst[:10])
             break

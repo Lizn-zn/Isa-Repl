@@ -264,6 +264,30 @@ class IsaReplApplication {
     result
   }
 
+  def _extract_hammer_facts_with_thy_names(filter: String): String = {
+    val result =
+      try {
+        val facts = repl.extract_hammer_facts_with_thy_names(filter)
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
+  def _extract_hammer_facts_with_thy_names(filter: String, adds: List[String], dels: List[String]): String = {
+    val result =
+      try {
+        val facts = repl.extract_hammer_facts_with_thy_names()
+        "True" + "<\\SEP>" + facts
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract facts. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
   def _clone_tls(tls_name: String): String = {
     val result =
       try {

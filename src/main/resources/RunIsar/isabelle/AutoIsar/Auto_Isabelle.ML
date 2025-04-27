@@ -142,7 +142,7 @@ fun retrieve_facts state thy filter adds dels  =
   end
 
 fun string_of_facts_with_theory_names filter facts =
-  string_of_int (length facts) ^ "<\\SEP>" ^ (if filter = "" then "" else filter ^ " ") ^ "<\\SEP>" ^ 
+  string_of_int (length facts) ^ "<\\SEP>" ^ (if filter = "" then "" else filter) ^ "<\\SEP>" ^ 
   (space_implode "<\\SEP>" (map (fn x => String.concat [(Thm.theory_long_name (#2 x)), "<\\INNER_SEP>", (Thm.derivation_name (#2 x)), "<\\INNER_SEP>", #1 (#1 x)]) facts))
 
 fun string_of_factss_with_theory_names factss =
