@@ -62,7 +62,7 @@ class IsaREPL(
     var path_to_isa_bin: String,
     var path_to_file: String,
     var working_directory: String,
-    var logic: String = "HOL",
+    var session: String = "HOL",
     var session_roots: List[String] = Nil,
     var debug: Boolean = false
 ) {
@@ -117,7 +117,7 @@ class IsaREPL(
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
     workingDirectory = Path.of(working_directory),
-    logic = logic,
+    logic = session,
     sessionRoots = session_roots.map(s => Path.of(s))
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
@@ -596,7 +596,7 @@ class IsaREPL(
     path_to_isa_bin = path_to_isa_bin,
     path_to_file = path_to_file,
     working_directory = working_directory,
-    logic = logic,
+    logic = session,
     sessionRoots = session_roots,
     isabelle = isabelle,
     debug = debug

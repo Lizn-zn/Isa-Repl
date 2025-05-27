@@ -12,7 +12,7 @@ import java.util.concurrent.TimeoutException
 class IsaReplApplication {
   val isabelleHome: String = sys.env.getOrElse(
     "ISABELLE_HOME",
-    throw new Exception("ISABELLE_HOME not set")  
+    throw new Exception("ISABELLE_HOME not set")
   )
   val workingDirectory: String = {
     val path = Paths.get("/tmp/IsaREPL/")
@@ -35,14 +35,14 @@ class IsaReplApplication {
   def _initializeRepl(
       pathToFile: String,
       workingDirectory: String,
-      logic: String,
+      session: String,
       sessionRoots: util.ArrayList[String]
   ): Unit = {
     repl = new IsaREPL(
       path_to_isa_bin = isabelleHome,
       path_to_file = pathToFile,
       working_directory = workingDirectory,
-      logic = logic,
+      session = session,
       session_roots = sessionRoots.asScala.toList
     )
   }
@@ -61,11 +61,11 @@ class IsaReplApplication {
       }
       TempFileManager.cleanupAll()
     } catch {
-      case e: Exception => 
+      case e: Exception =>
         println(s"Error during cleanup: ${e.getMessage}")
     }
   }
-  
+
   def _compile(): String = {
     val result =
       try {
@@ -103,12 +103,12 @@ class IsaReplApplication {
     val result =
       try {
         "True" + "<\\SEP>" + repl.step_with_30s(command)
-    } catch {
-      case e: IsabelleMLException => 
-        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
-      case e: TimeoutException =>
-        "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
-    }
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+        case e: TimeoutException =>
+          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+      }
     result
   }
 
@@ -153,19 +153,20 @@ class IsaReplApplication {
   }
 
   def _try_close(): String = {
-    val result = try{
+    val result =
+      try {
         val (ok, results) = repl.try_close()
         if (ok) {
           "True" + "<\\SEP>" + results
         } else {
           "False" + "<\\SEP>" + results
         }
-    } catch {
-      case e: IsabelleMLException => 
-        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
-      case e: TimeoutException =>
-        "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
-    }
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+        case e: TimeoutException =>
+          "False" + "<\\SEP>" + s"failed for try close the goal. Get msg: ${e.getMessage}"
+      }
     result
   }
 
@@ -276,7 +277,11 @@ class IsaReplApplication {
     result
   }
 
-  def _extract_hammer_facts_with_thy_names(filter: String, adds: List[String], dels: List[String]): String = {
+  def _extract_hammer_facts_with_thy_names(
+      filter: String,
+      adds: List[String],
+      dels: List[String]
+  ): String = {
     val result =
       try {
         val facts = repl.extract_hammer_facts_with_thy_names()
@@ -305,21 +310,22 @@ class IsaReplApplication {
       try {
         repl.clone_tls(tls_name)
         "True"
-    } catch {
-      case e: IsabelleMLException => 
-        "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
-    }
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for extract the goal. Get msg: ${e.getMessage}"
+      }
     result
   }
 
   def _remove_tls(tls_name: String): String = {
-    val result = try {
+    val result =
+      try {
         repl.remove_tls(tls_name)
         "True"
-    } catch {
-      case e: IsabelleMLException => 
-        "False" + "<\\SEP>" + s"failed for remove the tls. Get msg: ${e.getMessage}"
-    }
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for remove the tls. Get msg: ${e.getMessage}"
+      }
     result
   }
 
@@ -338,8 +344,7 @@ class IsaReplApplication {
   def _subgoal_finished(): String = {
     val result =
       try {
-        val res = repl.subgoal_finished()
-        if (res == true) {
+        if (repl.subgoal_finished()) {
           "True" + "<\\SEP>" + "no additional messages"
         } else {
           "False" + "<\\SEP>" + "no additional messages"
