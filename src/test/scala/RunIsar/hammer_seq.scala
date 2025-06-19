@@ -1,25 +1,30 @@
 package RunIsar
-  
+
 import org.scalatest.funsuite.AnyFunSuite
 import java.nio.file.Paths
 import RunIsar.IsaREPL
 
 class HammerSeqTests extends AnyFunSuite {
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
-  val isabelleHome_str: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
-  val path_to_isa_bin: String = isabelleHome_str
+  val isabelleHome_str: String = sys.env.getOrElse(
+    "ISABELLE_HOME",
+    throw new Exception("ISABELLE_HOME not set")
+  )
+  val isabelle_home: String = isabelleHome_str
 
-  val path_to_file : String = Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
+  val path_to_thy: String =
+    Paths.get("python-test/Test.thy").toAbsolutePath.toString
+  val working_directory: String =
+    Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
-    path_to_isa_bin = path_to_isa_bin,
-    path_to_file = path_to_file,
+    isabelle_home = isabelle_home,
+    path_to_thy = path_to_thy,
     working_directory = working_directory,
     debug = false
   )
 
-
-  val result0: String = isa_repl.compile(""" theory test imports Complex_Main begin""")
+  val result0: String =
+    isa_repl.compile(""" theory test imports Complex_Main begin""")
   isa_repl.step("""
                 theorem aimeII_2001_p3:
                 fixes x :: "nat \<Rightarrow> int"
@@ -38,7 +43,11 @@ class HammerSeqTests extends AnyFunSuite {
     isa_repl.step("have step5: \"x 5 = x 4 - x 3 + x 2 - x 1\"")
     val (ok, result) = isa_repl.prove_by_hammer()
     if (ok == true) {
-      val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
+      val proof_string: String = result
+        .replace("Try this:", "")
+        .replaceAll("\\(\\d+ ms\\)", "")
+        .replaceAll("\\(\\d+.\\d+ ms\\)", "")
+        .replaceAll("\\(\\d+.\\d+ s\\)", "")
       val res: String = isa_repl.step(proof_string)
       assert(res.contains("x 531 + x 753 + x 975 = 898"))
     }
@@ -88,7 +97,7 @@ class HammerSeqTests extends AnyFunSuite {
   //   val res: String = isa_repl.step(proof_string)
   //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
   // }
-  
+
   // test("Hammer Step.2.2 from Isabelle proof") {
   //   isa_repl.step("also have \"... = (-211)\"")
   //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
@@ -106,7 +115,7 @@ class HammerSeqTests extends AnyFunSuite {
   //   val res: String = isa_repl.step(proof_string)
   //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
   // }
-  
+
   // test("Hammer Step.3 from Isabelle proof") {
   //   isa_repl.step("have step7: \"x 7 = x 6 - x 5 + x 4 - x 3\"")
   //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
@@ -132,7 +141,7 @@ class HammerSeqTests extends AnyFunSuite {
   //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
   //   val res: String = isa_repl.step(proof_string)
   //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
-  // } 
+  // }
 
   // test("Hammer Step.3.3 from Isabelle proof") {
   //   isa_repl.step("finally have x7: \"x 7 = -375\"")
@@ -173,7 +182,7 @@ class HammerSeqTests extends AnyFunSuite {
   // test("Hammer Step.4.3 from Isabelle proof") {
   //   isa_repl.step("finally have x8: \"x 8 = -420\"")
   //   val (ok, result) = isa_repl.prove_by_hammer(timeout_in_millis=300000)
-  //   assert(ok == true)  
+  //   assert(ok == true)
   //   val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ ms\\)", "").replaceAll("\\(\\d+.\\d+ s\\)", "")
   //   val res: String = isa_repl.step(proof_string)
   //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
@@ -324,9 +333,8 @@ class HammerSeqTests extends AnyFunSuite {
   //   assert(res.contains("x 531 + x 753 + x 975 = 898"))
   // }
 
-
-  test ("Hammer close proof") {
+  test("Hammer close proof") {
     isa_repl.step("oops")
   }
-  
+
 }

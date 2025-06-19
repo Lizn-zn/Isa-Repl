@@ -24,33 +24,33 @@ class IsaReplApplication {
 
   private var repl: IsaREPL = _
 
-  def _initializeRepl(pathToFile: String): Unit = {
+  def _initializeRepl(pathToThy: String): Unit = {
     repl = new IsaREPL(
       isabelle_home = isabelleHome,
-      path_to_thy = pathToFile,
+      path_to_thy = pathToThy,
       working_directory = workingDirectory
     )
   }
 
   def _initializeRepl(
-      pathToFile: String,
+      pathToThy: String,
       workingDirectory: String,
       session: String,
       sessionRoots: util.ArrayList[String]
   ): Unit = {
     repl = new IsaREPL(
       isabelle_home = isabelleHome,
-      path_to_thy = pathToFile,
+      path_to_thy = pathToThy,
       working_directory = workingDirectory,
       session = session,
       session_roots = sessionRoots.asScala.toList
     )
   }
 
-  def _resetRepl(pathToFile: String): Unit = {
-    val msg = repl.reset_isabelle(pathToFile)
+  def _resetRepl(pathToThy: String): Unit = {
+    val msg = repl.reset_isabelle(pathToThy)
     if (msg != "Reset") {
-      _initializeRepl(pathToFile)
+      _initializeRepl(pathToThy)
     }
   }
 

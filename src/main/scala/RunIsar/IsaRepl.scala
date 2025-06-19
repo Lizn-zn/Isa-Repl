@@ -58,11 +58,20 @@ object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
 
 /** Main class for the Isabelle REPL (Read-Eval-Print Loop).
-  * @param isabelle_home: path to an Isabelle installation. Normally it equals to the ISABELLE_HOME env within isabelle's runtime. It is expected to contain 'bin/isabelle'
-  * @param path_to_thy: path to a thy file to be loaded.
-  * @param working_directory: path to a working directory where the underlying 'isabelle build ...' process will look for ROOT/ROOTS files and .thys.
-  * @param session: the Isabelle session to be built. It will pass to the underlying 'isabelle build ...' process. Default is "HOL".
-  * @param session_roots: additional directories where the underlying 'isabelle build ...' process will look for Isabelle sessions.
+  * @param isabelle_home:
+  *   path to an Isabelle installation. Normally it equals to the ISABELLE_HOME
+  *   env within isabelle's runtime. It is expected to contain 'bin/isabelle'
+  * @param path_to_thy:
+  *   path to a thy file to be loaded.
+  * @param working_directory:
+  *   path to a working directory where the underlying 'isabelle build ...'
+  *   process will look for ROOT/ROOTS files and .thys.
+  * @param session:
+  *   the Isabelle session to be built. It will pass to the underlying 'isabelle
+  *   build ...' process. Default is "HOL".
+  * @param session_roots:
+  *   additional directories where the underlying 'isabelle build ...' process
+  *   will look for Isabelle sessions.
   */
 //noinspection TypeAnnotation,ScalaUnusedSymbol
 class IsaREPL(
@@ -557,8 +566,8 @@ class IsaREPL(
   if (debug) println("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
-    path_to_isa_bin = isabelle_home,
-    path_to_file = path_to_thy,
+    isabelle_home = isabelle_home,
+    path_to_thy = path_to_thy,
     working_directory = working_directory,
     logic = session,
     sessionRoots = session_roots,
@@ -799,7 +808,7 @@ class IsaREPL(
   }
 
   def singleTransition(singTransition: Transition.T): String = {
-    //    TODO: inlcude global facts
+    //    TODO: include global facts
     toplevel = singleTransition(singTransition, toplevel)
     getStateString
   }
