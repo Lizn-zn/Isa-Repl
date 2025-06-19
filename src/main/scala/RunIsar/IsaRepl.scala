@@ -57,10 +57,17 @@ object RuntimeError extends AdHocConverter("Runtime.error")
 object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
 
+/** Main class for the Isabelle REPL (Read-Eval-Print Loop).
+  * @param isabelle_home: path to an Isabelle installation. Normally it equals to the ISABELLE_HOME env within isabelle's runtime. It is expected to contain 'bin/isabelle'
+  * @param path_to_thy: path to a thy file to be loaded.
+  * @param working_directory: path to a working directory where the underlying 'isabelle build ...' process will look for ROOT/ROOTS files and .thys.
+  * @param session: the Isabelle session to be built. It will pass to the underlying 'isabelle build ...' process. Default is "HOL".
+  * @param session_roots: additional directories where the underlying 'isabelle build ...' process will look for Isabelle sessions.
+  */
 //noinspection TypeAnnotation,ScalaUnusedSymbol
 class IsaREPL(
-    var path_to_isa_bin: String,
-    var path_to_file: String,
+    var isabelle_home: String,
+    var path_to_thy: String,
     var working_directory: String,
     var session: String = "HOL",
     var session_roots: List[String] = Nil,
@@ -69,51 +76,8 @@ class IsaREPL(
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
-    path_to_file.split("/").last.replace(".thy", "")
-  val isabelleHome: Path = Paths.get(path_to_isa_bin)
-
-  /** Configuration for initializing an [[Isabelle]] instance.
-    *
-    * (The fields of this class are documents in the source code. I am not sure
-    * why they do not occur in the generated API doc.)
-    *
-    * @param workingDirectory
-    *   Working directory in which the Isabelle process should run. (Default:
-    *   working directory of the Scala process.) All other paths described below
-    *   are interpreted relative to `workingDirectory` (unless they are
-    *   absolute).
-    * @param isabelleHome
-    *   Path to the Isabelle distribution
-    * @param logic
-    *   Heap image to load in Isabelle (e.g., `HOL`, `HOL-Analysis`, etc.)
-    * @param sessionRoots
-    *   Additional session directories in which Isabelle will search for
-    *   sessions (must contain `ROOT` files and optionally `ROOTS` files, see
-    *   the Isabelle system manual). Default: no additional session directories
-    * @param userDir
-    *   User configuration directory for Isabelle. Must end in `/.isabelle` if
-    *   provided. None (default) means to let Isabelle chose the default
-    *   location. Here Isabelle stores user configuration and heap images
-    *   (unless the location of the heap images is configured differently, see
-    *   the Isabelle system manual)
-    * @param build
-    *   This option has currently no effect. The heap is always built. Old
-    *   documentation:
-    *
-    * Whether to build the Isabelle heap before running Isabelle. If false, the
-    * heap will never be built. (This means changes in the Isabelle theories
-    * will not be reflected. And if the heap was never built, the Isabelle
-    * process fails.) If true, the Isabelle build command will be invoked. That
-    * command automatically checks for changed dependencies but may add a
-    * noticable delay even if the heap was already built.
-    * @param exceptionManager
-    *   See [[SetupGeneral.exceptionManager]]
-    * @param verbose
-    *   Makes Isabelle run in verbose mode. (Only affects debug output, and only
-    *   during build.)
-    * @param isabelleCommandHandler
-    *   See [[SetupGeneral.isabelleCommandHandler]]
-    */
+    path_to_thy.split("/").last.replace(".thy", "")
+  val isabelleHome: Path = Paths.get(isabelle_home)
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
     workingDirectory = Path.of(working_directory),
@@ -585,7 +549,7 @@ class IsaREPL(
 
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
-  private var fileContent: String = Files.readString(Path.of(path_to_file))
+  private var fileContent: String = Files.readString(Path.of(path_to_thy))
   var fileContentCopy: String = fileContent
   if (debug) println("File content: " + fileContent)
 
@@ -593,8 +557,8 @@ class IsaREPL(
   if (debug) println("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
-    path_to_isa_bin = path_to_isa_bin,
-    path_to_file = path_to_file,
+    path_to_isa_bin = isabelle_home,
+    path_to_file = path_to_thy,
     working_directory = working_directory,
     logic = session,
     sessionRoots = session_roots,
@@ -1223,9 +1187,9 @@ class IsaREPL(
 
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {
-    path_to_file = path
-    currentTheoryName = path_to_file.split("/").last.replace(".thy", "")
-    fileContent = Files.readString(Path.of(path_to_file))
+    path_to_thy = path
+    currentTheoryName = path_to_thy.split("/").last.replace(".thy", "")
+    fileContent = Files.readString(Path.of(path_to_thy))
     fileContentCopy = fileContent
     thy1 = theoryManager.beginTheory()
     toplevel = init_toplevel().force.retrieveNow

@@ -26,8 +26,8 @@ class IsaReplApplication {
 
   def _initializeRepl(pathToFile: String): Unit = {
     repl = new IsaREPL(
-      path_to_isa_bin = isabelleHome,
-      path_to_file = pathToFile,
+      isabelle_home = isabelleHome,
+      path_to_thy = pathToFile,
       working_directory = workingDirectory
     )
   }
@@ -39,8 +39,8 @@ class IsaReplApplication {
       sessionRoots: util.ArrayList[String]
   ): Unit = {
     repl = new IsaREPL(
-      path_to_isa_bin = isabelleHome,
-      path_to_file = pathToFile,
+      isabelle_home = isabelleHome,
+      path_to_thy = pathToFile,
       working_directory = workingDirectory,
       session = session,
       session_roots = sessionRoots.asScala.toList
