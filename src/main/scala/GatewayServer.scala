@@ -10,9 +10,9 @@ import java.util
 import java.util.concurrent.TimeoutException
 
 class IsaReplApplication {
-  val isabelleHome: String = sys.env.getOrElse(
+  var isabelleHome: String = sys.env.getOrElse(
     "ISABELLE_HOME",
-    throw new Exception("ISABELLE_HOME not set")
+    null
   )
   val workingDirectory: String = {
     val path = Paths.get("/tmp/IsaREPL/")
@@ -25,6 +25,16 @@ class IsaReplApplication {
   private var repl: IsaREPL = _
 
   def getRepl(): IsaREPL = repl
+
+  def setIsabelleHome(isabelleHome: String): Unit = {
+    if (isabelleHome != null && isabelleHome.nonEmpty) {
+      this.isabelleHome = isabelleHome
+    } else {
+      throw new IllegalArgumentException(
+        "Isabelle home path cannot be null or empty"
+      )
+    }
+  }
 
   def _initializeRepl(pathToThy: String): Unit = {
     repl = new IsaREPL(
