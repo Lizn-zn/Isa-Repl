@@ -36,12 +36,13 @@ class IsaReplApplication {
     }
   }
 
-  def _initializeRepl(pathToThy: String): Unit = {
+  def _initializeRepl(pathToThy: String): IsaREPL = {
     repl = new IsaREPL(
       isabelle_home = isabelleHome,
       path_to_thy = pathToThy,
       working_directory = workingDirectory
     )
+    repl
   }
 
   def _initializeRepl(
@@ -49,7 +50,7 @@ class IsaReplApplication {
       workingDirectory: String,
       session: String,
       sessionRoots: util.ArrayList[String]
-  ): Unit = {
+  ): IsaREPL = {
     repl = new IsaREPL(
       isabelle_home = isabelleHome,
       path_to_thy = pathToThy,
@@ -57,12 +58,15 @@ class IsaReplApplication {
       session = session,
       session_roots = sessionRoots.asScala.toList
     )
+    repl
   }
 
-  def _resetRepl(pathToThy: String): Unit = {
+  def _resetRepl(pathToThy: String): IsaREPL = {
     val msg = repl.reset_isabelle(pathToThy)
     if (msg != "Reset") {
       _initializeRepl(pathToThy)
+    } else {
+      repl
     }
   }
 
