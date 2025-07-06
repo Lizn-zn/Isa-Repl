@@ -24,6 +24,8 @@ class IsaReplApplication {
 
   private var repl: IsaREPL = _
 
+  def getRepl(): IsaREPL = repl
+
   def _initializeRepl(pathToThy: String): Unit = {
     repl = new IsaREPL(
       isabelle_home = isabelleHome,
