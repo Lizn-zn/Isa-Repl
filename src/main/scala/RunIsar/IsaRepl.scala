@@ -544,13 +544,25 @@ class IsaREPL(
     )
 
   // check if the sub-proof is finished; if it is, then we can successfully retrieve it by `this`, and thus return true; otherwise, return false
-  val check_no_subgoals: MLFunction[ToplevelState, Boolean] =
+  val parse_no_subgoals: MLFunction[ToplevelState, Boolean] =
     compileFunction[ToplevelState, Boolean](
       """fn (toplevel_state) =>
         | let
         |   val proof_state = Toplevel.proof_of toplevel_state;
-        |   val proof_context = Proof.context_of proof_state;
-        |   val result = can (Proof_Context.get_fact proof_context) (Facts.named "this");
+        |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
+        |   val result = Thm.no_prems goal;
+        | in
+        |   result
+        | end""".stripMargin
+    )
+
+  val parse_num_subgoals: MLFunction[ToplevelState, Int] =
+    compileFunction[ToplevelState, Int](
+      """fn (toplevel_state) =>
+        | let
+        |   val proof_state = Toplevel.proof_of toplevel_state;
+        |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
+        |   val result = Thm.nprems_of goal;
         | in
         |   result
         | end""".stripMargin
@@ -1121,9 +1133,14 @@ class IsaREPL(
     goal
   }
 
-  def subgoal_finished(): Boolean = {
-    val subgoal_finished = check_no_subgoals(toplevel).force.retrieveNow
-    subgoal_finished
+  def check_no_subgoals(): Boolean = {
+    val no_subgoals = parse_no_subgoals(toplevel).force.retrieveNow
+    no_subgoals
+  }
+
+  def check_num_subgoals(): Int = {
+    val num_subgoals = parse_num_subgoals(toplevel).force.retrieveNow
+    num_subgoals
   }
 
   /*

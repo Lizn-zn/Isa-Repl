@@ -341,10 +341,10 @@ class IsaReplApplication {
     result
   }
 
-  def _subgoal_finished(): String = {
+  def _proof_finished(): String = {
     val result =
       try {
-        if (repl.subgoal_finished()) {
+        if (repl.check_no_subgoals()) {
           "True" + "<\\SEP>" + "no additional messages"
         } else {
           "False" + "<\\SEP>" + "no additional messages"

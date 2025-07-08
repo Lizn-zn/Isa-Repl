@@ -33,9 +33,12 @@ lazy val root = (project in file("."))
     // Configure assembly settings
     assembly / assemblyOutputPath := file("target/IsaREPL.jar"),
     assembly / mainClass := Some("org.isarepl.IsaReplGatewayServer"),
-    assembly / assemblyMergeStrategy := {  
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard  
-      case x => MergeStrategy.first  
+    assembly / assemblyMergeStrategy := {
+      case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
+      case PathList("META-INF", "services", _*) => MergeStrategy.filterDistinctLines
+      case PathList("META-INF", _*) => MergeStrategy.discard
+      case "reference.conf" => MergeStrategy.concat
+      case _ => MergeStrategy.first
     }
   )
   .dependsOn(scalaIsabelle)
