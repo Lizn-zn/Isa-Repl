@@ -1,5 +1,5 @@
 package RunIsar
-  
+
 import org.scalatest.funsuite.AnyFunSuite
 import java.nio.file.Paths
 import RunIsar.IsaREPL
@@ -7,20 +7,26 @@ import RunIsar.Exceptions.IsabelleMLException
 
 class TryCloseTests extends AnyFunSuite {
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
-  val isabelleHome_str: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
-  val path_to_isa_bin: String = isabelleHome_str
+  val isabelleHome_str: String = sys.env.getOrElse(
+    "ISABELLE_HOME",
+    throw new Exception("ISABELLE_HOME not set")
+  )
+  val isabelle_home: String = isabelleHome_str
 
-  val path_to_file : String = Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
+  val path_to_thy: String =
+    Paths.get("python-test/Test.thy").toAbsolutePath.toString
+  val working_directory: String =
+    Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
-    path_to_isa_bin = path_to_isa_bin,
-    path_to_file = path_to_file,
+    isabelle_home = isabelle_home,
+    path_to_thy = path_to_thy,
     working_directory = working_directory,
     debug = false
   )
 
   // 1. compile the theory env
-  val result0: String = isa_repl.compile(""" theory test imports Complex_Main begin """)
+  val result0: String =
+    isa_repl.compile(""" theory test imports Complex_Main begin """)
 
   // test 1
   test("try 0 No.1 from Isabelle proof") {
@@ -38,7 +44,8 @@ class TryCloseTests extends AnyFunSuite {
                   shows "2 * (e * r) + (e\<^sup>2 + r\<^sup>2) = (- r + - e)\<^sup>2"
                 """)
     val (ok, result) = isa_repl.try_close()
-    val proof_string: String = result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
+    val proof_string: String =
+      result.replace("Try this:", "").replaceAll("\\(\\d+ ms\\)", "")
     val res: String = isa_repl.step(proof_string)
     assert(res == "")
   }
@@ -70,11 +77,11 @@ class TryCloseTests extends AnyFunSuite {
   //           have n_pos: "n > 0"
   //             using \<open>n \<noteq> 0\<close> by force
   //           obtain d a b where d_def: "d = gcd n k" and n_fact: "n = d * a" and k_fact: "k = d * b" and coprime: "gcd a b = 1"
-  //             using n_pos k_pos 
+  //             using n_pos k_pos
   //               """)
-          
-  //   val result = 
-  //     try{ 
+
+  //   val result =
+  //     try{
   //       isa_repl.try_close(12000000)
   //     } catch {
   //       case e: IsabelleMLException =>

@@ -10,7 +10,7 @@ isa_repl = gateway.entry_point
 # Initialize REPL with a theory file
 template = """
 theory Test
-    imports {logic}.{theory_name}
+    imports {session}.{theory_name}
 begin
 """
 

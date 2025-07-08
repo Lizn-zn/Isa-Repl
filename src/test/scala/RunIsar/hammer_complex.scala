@@ -1,19 +1,24 @@
 package RunIsar
-  
+
 import org.scalatest.funsuite.AnyFunSuite
 import java.nio.file.Paths
 import RunIsar.IsaREPL
 
 class HammerComplexTests extends AnyFunSuite {
   // get the value of isabelleHome_str from env variable ISABELLE_HOME. If not set, raise an error
-  val isabelleHome_str: String = sys.env.getOrElse("ISABELLE_HOME", throw new Exception("ISABELLE_HOME not set"))
-  val path_to_isa_bin: String = isabelleHome_str
+  val isabelleHome_str: String = sys.env.getOrElse(
+    "ISABELLE_HOME",
+    throw new Exception("ISABELLE_HOME not set")
+  )
+  val isabelle_home: String = isabelleHome_str
 
-  val path_to_file : String = Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory : String = Paths.get("python-test").toAbsolutePath.toString
+  val path_to_thy: String =
+    Paths.get("python-test/Test.thy").toAbsolutePath.toString
+  val working_directory: String =
+    Paths.get("python-test").toAbsolutePath.toString
   val isa_repl = new IsaREPL(
-    path_to_isa_bin = path_to_isa_bin,
-    path_to_file = path_to_file,
+    isabelle_home = isabelle_home,
+    path_to_thy = path_to_thy,
     working_directory = working_directory,
     debug = false
   )
@@ -21,9 +26,10 @@ class HammerComplexTests extends AnyFunSuite {
   // test 1
   test("Hammer Complex No.1 from Isabelle proof") {
     // create the theorem to be proved
-  isa_repl.reset_isabelle(path_to_file)
-  val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
-  isa_repl.step("""
+    isa_repl.reset_isabelle(path_to_thy)
+    val result0: String =
+      isa_repl.compile(""" theory test imports Complex_Main  begin""")
+    isa_repl.step("""
                   lemma Node_7 : 
                   fixes e :: "complex" 
                   and r :: "complex" 
@@ -44,8 +50,9 @@ class HammerComplexTests extends AnyFunSuite {
   }
 
   test("Hammer Complex No.2 from Isabelle proof") {
-    isa_repl.reset_isabelle(path_to_file)
-    val result0: String = isa_repl.compile(""" theory test imports Complex_Main  begin""")
+    isa_repl.reset_isabelle(path_to_thy)
+    val result0: String =
+      isa_repl.compile(""" theory test imports Complex_Main  begin""")
     isa_repl.step("""
         theorem aimeII_2001_p3:
           fixes x :: "nat \<Rightarrow> int"
@@ -105,12 +112,13 @@ class HammerComplexTests extends AnyFunSuite {
     """)
     val (ok, result) = isa_repl.prove_by_hammer()
     if (ok == true) {
-      val proof_string: String = result.replace("Try this:", "")
-                                    .replaceAll("\\(\\d+ ms\\)", "")
-                                    .replaceAll("\\(\\d+\\.\\d+ ms\\)", "")
-                                    .replaceAll("\\(\\d+\\.\\d+ s\\)", "")
+      val proof_string: String = result
+        .replace("Try this:", "")
+        .replaceAll("\\(\\d+ ms\\)", "")
+        .replaceAll("\\(\\d+\\.\\d+ ms\\)", "")
+        .replaceAll("\\(\\d+\\.\\d+ s\\)", "")
       val res: String = isa_repl.step(proof_string)
-      assert (res.contains("x 531 + x 753 + x 975 = 898"))
+      assert(res.contains("x 531 + x 753 + x 975 = 898"))
     }
     isa_repl.step("oops")
   }

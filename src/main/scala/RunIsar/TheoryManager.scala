@@ -5,7 +5,11 @@ import _root_.java.nio.file.{Files, Path}
 import _root_.java.io.File
 import scala.collection.mutable.ListBuffer
 
-import de.unruh.isabelle.control.{Isabelle, OperationCollection, IsabelleMLException}
+import de.unruh.isabelle.control.{
+  Isabelle,
+  OperationCollection,
+  IsabelleMLException
+}
 import de.unruh.isabelle.pure.{Position, Theory, TheoryHeader, ToplevelState}
 import de.unruh.isabelle.mlvalue.MLValue.{compileFunction, compileFunction0}
 import de.unruh.isabelle.mlvalue.{
@@ -24,9 +28,9 @@ import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-/* 
+/*
 For TheoryManager
-  path_to_file: the file to be proved
+  path_to_thy: the file to be proved
   working_directory: the directory containing all .thy files to be imported
   logic: the logic to be used
   sessionRoots: the session roots to be used
@@ -34,24 +38,26 @@ For TheoryManager
  */
 
 class TheoryManager(
-    val path_to_isa_bin: String,
-    val path_to_file: String,
+    val isabelle_home: String,
+    val path_to_thy: String,
     val working_directory: String,
     val logic: String,
     val sessionRoots: List[String],
     implicit val isabelle: Isabelle,
     val debug: Boolean = false
 ) {
-  if (working_directory.contains(path_to_isa_bin)) {
-    throw new Exception("working_directory should not be set in the same directory as isabelleHome")
+  if (working_directory.contains(isabelle_home)) {
+    throw new Exception(
+      "working_directory should not be set in the same directory as isabelleHome"
+    )
   }
 
   val currentTheoryName: String =
-    path_to_file.split("/").last.replace(".thy", "")
+    path_to_thy.split("/").last.replace(".thy", "")
 
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
-  private var fileContent: String = Files.readString(Path.of(path_to_file))
+  private var fileContent: String = Files.readString(Path.of(path_to_thy))
   var fileContentCopy: String = fileContent
   if (debug) println("File content: " + fileContent)
 
@@ -170,7 +176,9 @@ class TheoryManager(
         toplevel_end_theory(toplevel).retrieveNow.force
     }
 
-  def beginTheory(source: Source = theoryStarter)(implicit isabelle: Isabelle): Theory = {
+  def beginTheory(
+      source: Source = theoryStarter
+  )(implicit isabelle: Isabelle): Theory = {
     if (debug) println("Checkpoint 9_1")
     val header = getHeader(source)
     if (debug) println("Checkpoint 9_2")
@@ -188,7 +196,7 @@ class TheoryManager(
       Ops
         .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
         .force
-      .retrieveNow
+        .retrieveNow
     } catch {
       case e: IsabelleMLException =>
         throw e

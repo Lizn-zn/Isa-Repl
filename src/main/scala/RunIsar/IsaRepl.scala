@@ -57,51 +57,40 @@ object RuntimeError extends AdHocConverter("Runtime.error")
 object Pretty extends AdHocConverter("Pretty.T")
 object ProofContext extends AdHocConverter("Proof_Context.T")
 
+/** Main class for the Isabelle REPL (Read-Eval-Print Loop).
+  * @param isabelle_home:
+  *   path to an Isabelle installation. Normally it equals to the ISABELLE_HOME
+  *   env within isabelle's runtime. It is expected to contain 'bin/isabelle'
+  * @param path_to_thy:
+  *   path to a thy file to be loaded.
+  * @param working_directory:
+  *   path to a working directory where the underlying 'isabelle build ...'
+  *   process will look for ROOT/ROOTS files and .thys.
+  * @param session:
+  *   the Isabelle session to be built. It will pass to the underlying 'isabelle
+  *   build ...' process. Default is "HOL".
+  * @param session_roots:
+  *   additional directories where the underlying 'isabelle build ...' process
+  *   will look for Isabelle sessions.
+  */
+//noinspection TypeAnnotation,ScalaUnusedSymbol
 class IsaREPL(
-    var path_to_isa_bin: String,
-    var path_to_file: String,
+    var isabelle_home: String,
+    var path_to_thy: String,
     var working_directory: String,
-    var logic: String = "HOL",
+    var session: String = "HOL",
     var session_roots: List[String] = Nil,
     var debug: Boolean = false
 ) {
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
-    path_to_file.split("/").last.replace(".thy", "")
-  val isabelleHome: Path = Paths.get(path_to_isa_bin)
-  /** Configuration for initializing an [[Isabelle]] instance.
-   *
-   * (The fields of this class are documents in the source code. I am not sure why they do not occur in the
-   * generated API doc.)
-   *
-   * @param workingDirectory Working directory in which the Isabelle process should run. (Default:
-   *                         working directory of the Scala process.) All other paths described
-   *                         below are interpreted relative to `workingDirectory` (unless they are absolute).
-   * @param isabelleHome Path to the Isabelle distribution
-   * @param logic Heap image to load in Isabelle (e.g., `HOL`, `HOL-Analysis`, etc.)
-   * @param sessionRoots Additional session directories in which Isabelle will search for sessions
-   *                     (must contain `ROOT` files and optionally `ROOTS` files, see the Isabelle system manual).
-   *                     Default: no additional session directories
-   * @param userDir User configuration directory for Isabelle. Must end in `/.isabelle` if provided.
-   *                None (default) means to let Isabelle chose the default location.
-   *                Here Isabelle stores user configuration and heap images (unless
-   *                the location of the heap images is configured differently, see the Isabelle system manual)
-   * @param build This option has currently no effect. The heap is always built. Old documentation:
-   *
-   *              Whether to build the Isabelle heap before running Isabelle. If false, the heap will never be
-   *              built. (This means changes in the Isabelle theories will not be reflected. And if the heap was never
-   *              built, the Isabelle process fails.) If true, the Isabelle build command will be invoked. That
-   *              command automatically checks for changed dependencies but may add a noticable delay even if
-   *              the heap was already built.
-   * @param exceptionManager See [[SetupGeneral.exceptionManager]]
-   * @param verbose Makes Isabelle run in verbose mode. (Only affects debug output, and only during build.)
-   * @param isabelleCommandHandler See [[SetupGeneral.isabelleCommandHandler]]
-   */
+    path_to_thy.split("/").last.replace(".thy", "")
+  val isabelleHome: Path = Paths.get(isabelle_home)
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
     workingDirectory = Path.of(working_directory),
-    logic = logic,
+    logic = session,
     sessionRoots = session_roots.map(s => Path.of(s))
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
@@ -115,9 +104,9 @@ class IsaREPL(
   val thy0 = Theory(autoIsaPath)
   val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
   // Compile useful ML functions
-  val num_of_processors : MLFunction0[Int] = 
+  val num_of_processors: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
-  val num_of_threads : MLFunction0[Int] = 
+  val num_of_threads: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.max_threads ()")
   // Compile useful ML functions
   val script_thy: MLFunction2[String, Theory, Theory] =
@@ -156,7 +145,8 @@ class IsaREPL(
         |  fun go_run (a, b, c) = Toplevel.command_exception a b c
         |  in Timeout.apply (Time.fromSeconds 30) go_run (int, tr, st) end""".stripMargin
     )
-  val command_errors: MLFunction3[Boolean,
+  val command_errors: MLFunction3[
+    Boolean,
     Transition.T,
     ToplevelState,
     (List[RuntimeError.T], Option[ToplevelState])
@@ -253,7 +243,8 @@ class IsaREPL(
         |     map (fn x => (#1 (#2 x))) (Thm_Deps.thm_deps thy thm)
         | end""".stripMargin
     )
-  val get_dependent_thms_with_thy_names: MLFunction2[ToplevelState, String, List[String]] =
+  val get_dependent_thms_with_thy_names
+      : MLFunction2[ToplevelState, String, List[String]] =
     compileFunction[ToplevelState, String, List[String]](
       """fn (tls, name) =>
         | let val thy = Toplevel.theory_of tls;
@@ -262,7 +253,10 @@ class IsaREPL(
         |     map (fn x => String.concat [#theory_name (#1 x), "<\\INNER_SEP>", (#1 (#2 x))]) (Thm_Deps.thm_deps thy thm)
         | end""".stripMargin
     )
-  def get_dependent_theorems(tls_name: String, theorem_name: String): List[String] = {
+  def get_dependent_theorems(
+      tls_name: String,
+      theorem_name: String
+  ): List[String] = {
     val toplevel_state = retrieve_tls(tls_name)
     // println("Retrieved top level")
     try {
@@ -270,11 +264,10 @@ class IsaREPL(
         get_dependent_thms(toplevel_state, theorem_name).force.retrieveNow
       return dependent_thms
     } catch {
-      case e: IsabelleMLException => {
+      case e: IsabelleMLException =>
         println("Name not found. Trying locales.")
         throw e
-      }
-      case o: Throwable => {println(o); throw o}
+      case o: Throwable => println(o); throw o
     }
     val relevant_locales = locales_defined_in_file(toplevel_state)
     // println(relevant_locales)
@@ -293,7 +286,7 @@ class IsaREPL(
           println("This locale works: " + relevant_locale)
           Breaks.break()
         } catch {
-          case e: Throwable => { println(e) }
+          case e: Throwable => println(e)
         }
       }
     }
@@ -301,21 +294,26 @@ class IsaREPL(
     dep_thms
   }
 
-  def get_dependent_theorems_with_theory_names(tls_name: String, theorem_name: String): List[String] = {
+  def get_dependent_theorems_with_theory_names(
+      tls_name: String,
+      theorem_name: String
+  ): List[String] = {
     val toplevel_state = retrieve_tls(tls_name)
     // println("Retrieved top level")
     try {
       val dependent_thms =
-        get_dependent_thms_with_thy_names(toplevel_state, theorem_name).force.retrieveNow
+        get_dependent_thms_with_thy_names(
+          toplevel_state,
+          theorem_name
+        ).force.retrieveNow
       return dependent_thms
     } catch {
-      case e: IsabelleMLException => {
+      case e: IsabelleMLException =>
         println("Name not found. Trying locales.")
         throw new RunIsarMLException(e)
-      }
-      case o: Throwable => {
-        println(o); throw o
-      }
+      case o: Throwable =>
+        println(o);
+        throw o
     }
   }
 
@@ -371,7 +369,10 @@ class IsaREPL(
         |  flex inner_syntax
         |end""".stripMargin
     )
-  def get_all_definitions(tls_name: String, theorem_string: String): List[String] = {
+  def get_all_definitions(
+      tls_name: String,
+      theorem_string: String
+  ): List[String] = {
     val toplevel_state = retrieve_tls(tls_name)
     val quotation_split: List[String] = theorem_string.split('"').toList
     val all_inner_syntax = quotation_split.indices
@@ -493,7 +494,7 @@ class IsaREPL(
         |  
         |  (* Final result with duplicates removed *)
         |  val res = var_decls 
-        |    |> map ${Auto_Isabelle}.clean_theorem_text
+        |    |> map $Auto_Isabelle.clean_theorem_text
         |    |> distinct (op =);
         |  in
         |    res
@@ -514,7 +515,7 @@ class IsaREPL(
         |         |> map #1
         |         |> map (Thm.string_of_thm proof_context);
         | in
-        |     map ${Auto_Isabelle}.clean_theorem_text assumptions
+        |     map $Auto_Isabelle.clean_theorem_text assumptions
         | end""".stripMargin
     )
 
@@ -538,7 +539,7 @@ class IsaREPL(
         |       else
         |         ""
         | in
-        |     ${Auto_Isabelle}.clean_theorem_text conclusion
+        |     $Auto_Isabelle.clean_theorem_text conclusion
         | end""".stripMargin
     )
 
@@ -557,7 +558,7 @@ class IsaREPL(
 
   // Find out about the starter string
   // filecontent is the content of thy file to be proved
-  private var fileContent: String = Files.readString(Path.of(path_to_file))
+  private var fileContent: String = Files.readString(Path.of(path_to_thy))
   var fileContentCopy: String = fileContent
   if (debug) println("File content: " + fileContent)
 
@@ -565,10 +566,10 @@ class IsaREPL(
   if (debug) println("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
-    path_to_isa_bin = path_to_isa_bin,
-    path_to_file = path_to_file,
+    isabelle_home = isabelle_home,
+    path_to_thy = path_to_thy,
     working_directory = working_directory,
-    logic = logic,
+    logic = session,
     sessionRoots = session_roots,
     isabelle = isabelle,
     debug = debug
@@ -600,10 +601,10 @@ class IsaREPL(
             |       val not_const = Syntax.read_term ctxt "Not";
             |       val not_ct = Thm.cterm_of ctxt not_const;
             |       fun negate ct = Thm.dest_comb ct ||> Thm.apply not_ct |-> Thm.apply;
-            |       val cprop = negate (Thm.rhs_of (${SMT_Normalize}.atomize_conv ctxt concl));
+            |       val cprop = negate (Thm.rhs_of ($SMT_Normalize.atomize_conv ctxt concl));
             |       val conjecture = Thm.assume cprop;
             |
-            |       val options = ${SMT_Config}.solver_options_of ctxt;
+            |       val options = $SMT_Config.solver_options_of ctxt;
             |       val comments = [space_implode " " options];
             |       val has_topsort = Term.exists_type (Term.exists_subtype (fn
             |                             TFree (_, []) => true
@@ -611,21 +612,21 @@ class IsaREPL(
             |                           | _ => false));
             |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
             |       fun check_topsort ctxt thm = 
-            |         if has_topsort (Thm.prop_of thm) then (${SMT_Normalize}.drop_fact_warning ctxt thm; TrueI) else thm;
+            |         if has_topsort (Thm.prop_of thm) then ($SMT_Normalize.drop_fact_warning ctxt thm; TrueI) else thm;
             |
             |       val thms0 = prems @ local_facts;
-            |       val thms = map (pair ${SMT_Util}.Axiom o check_topsort ctxt) thms0;
-            |       val assms_thms = (${SMT_Normalize}.normalize ctxt thms);
+            |       val thms = map (pair $SMT_Util.Axiom o check_topsort ctxt) thms0;
+            |       val assms_thms = ($SMT_Normalize.normalize ctxt thms);
             |
             |       val thms0 = [conjecture];
-            |       val thms = map (pair ${SMT_Util}.Conjecture o check_topsort ctxt) thms0;
-            |       val conc_thms = (${SMT_Normalize}.normalize ctxt thms);
+            |       val thms = map (pair $SMT_Util.Conjecture o check_topsort ctxt) thms0;
+            |       val conc_thms = ($SMT_Normalize.normalize ctxt thms);
             |
             |       val ithms = assms_thms @ conc_thms;
             |
             |       fun go_run () = 
             |         let 
-            |           val (str, _) = ${SMT_Translate}.translate ctxt "z3" [] comments ithms
+            |           val (str, _) = $SMT_Translate.translate ctxt "z3" [] comments ithms
             |         in 
             |           str  end  
             |    in  
@@ -646,7 +647,9 @@ class IsaREPL(
   // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
   // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".
   if (debug) println("Checkpoint 11")
-  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[String], List[String], (Boolean, (String, List[String]))] =
+  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
+    String
+  ], List[String], (Boolean, (String, List[String]))] =
     compileFunction[ToplevelState, Theory, List[String], List[
       String
     ], (Boolean, (String, List[String]))](
@@ -660,52 +663,61 @@ class IsaREPL(
             |          let
             |             val p_state = Toplevel.proof_of state;
             |             val ctxt = Proof.context_of p_state;
-            |             val params = ${Sledgehammer_Commands}.default_params thy
+            |             val params = $Sledgehammer_Commands.default_params thy
             |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
             |                 ("timeout","30"),
             |                 ("verbose","false")];
-            |             val results = ${Sledgehammer}.run_sledgehammer params ${Sledgehammer_Prover}.Normal NONE 1 override p_state;
+            |             val results = $Sledgehammer.run_sledgehammer params $Sledgehammer_Prover.Normal NONE 1 override p_state;
             |             val (result, (outcome, step)) = results;
             |           in
-            |             (result, (${Sledgehammer}.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
+            |             (result, ($Sledgehammer.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
             |           end;
             |    in
             |      go_run (state, thy) end
             |""".stripMargin
     )
 
-  val parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[String], List[String], String] =
-    compileFunction[ToplevelState, Theory, String, List[String], List[String], String](
+  val parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[
+    String
+  ], List[String], String] =
+    compileFunction[ToplevelState, Theory, String, List[String], List[
+      String
+    ], String](
       s"""fn (state, thy, filter, adds, dels) =>
         |    let
         |      val proof_state = Toplevel.proof_of state;
-        |      val facts = ${Auto_Isabelle}.retrieve_facts proof_state thy filter adds dels;
+        |      val facts = $Auto_Isabelle.retrieve_facts proof_state thy filter adds dels;
         |    in
         |      facts
         |    end
         |""".stripMargin
     )
 
-  val parse_hammer_facts_with_theory_names: MLFunction5[ToplevelState, Theory, String, List[String], List[String], String] =
-    compileFunction[ToplevelState, Theory, String, List[String], List[String], String](
+  val parse_hammer_facts_with_theory_names
+      : MLFunction5[ToplevelState, Theory, String, List[String], List[
+        String
+      ], String] =
+    compileFunction[ToplevelState, Theory, String, List[String], List[
+      String
+    ], String](
       s"""fn (state, thy, filter, adds, dels) =>
          |    let
          |      val proof_state = Toplevel.proof_of state;
-         |      val facts = ${Auto_Isabelle}.retrieve_facts_with_theory_names proof_state thy filter adds dels;
+         |      val facts = $Auto_Isabelle.retrieve_facts_with_theory_names proof_state thy filter adds dels;
          |    in
          |      facts
          |    end
          |""".stripMargin
     )
-  
+
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
         |        let
         |          val proof_state = Toplevel.proof_of state;
-        |          val (success, method, step) = ${Auto_Isabelle}.try_close (Time.fromSeconds 10) proof_state;
+        |          val (success, method, step) = $Auto_Isabelle.try_close (Time.fromSeconds 10) proof_state;
         |        in
-        |          (success, method, ${Auto_Isabelle}.clean_theorem_text step)
+        |          (success, method, $Auto_Isabelle.clean_theorem_text step)
         |        end
         |""".stripMargin
     )
@@ -796,7 +808,7 @@ class IsaREPL(
   }
 
   def singleTransition(singTransition: Transition.T): String = {
-    //    TODO: inlcude global facts
+    //    TODO: include global facts
     toplevel = singleTransition(singTransition, toplevel)
     getStateString
   }
@@ -984,7 +996,7 @@ class IsaREPL(
       }
     }
   }
-  def accumulative_step_through_a_theorem: Unit = {
+  def accumulative_step_through_a_theorem(): Unit = {
     var proof_finished: Boolean = false
     while (!proof_finished) {
       val (transition, text) = transitions_and_texts(accumulative_index)
@@ -1003,11 +1015,9 @@ class IsaREPL(
   }
   def accumulative_step_to_theorem_end(theorem_name: String): Unit = {
     accumulative_step_before_theorem_starts(theorem_name)
-    accumulative_step_through_a_theorem
+    accumulative_step_through_a_theorem()
   }
 
-  
-  
   /* ==================================================================================
   The following functions are prepared interfaces for Isa-REPL
   1. compile(): None or String. If None, the original thy file is compiled. If String, the string is compiled.
@@ -1025,7 +1035,7 @@ class IsaREPL(
    */
   def compile(): String = {
     var stateString: String = ""
-    var context_length: Int = fileContent.split("\n").length
+    val context_length: Int = fileContent.split("\n").length
     if (context_length > 5) {
       throw new Exception("Compilation context is too complex")
     }
@@ -1044,7 +1054,7 @@ class IsaREPL(
   // compile the isar string
   def compile(isar_string: String): String = {
     var stateString: String = ""
-    var context_length: Int = isar_string.split("\n").length
+    val context_length: Int = isar_string.split("\n").length
     if (context_length > 5) {
       throw new Exception("Compilation context is too complex")
     }
@@ -1139,8 +1149,13 @@ class IsaREPL(
     get_dependent_thms(toplevel, theorem_name).force.retrieveNow
   }
 
-  def extract_hammer_facts(filter: String = "mepo", adds: List[String] = List[String](), dels: List[String] = List[String]()): String = {
-    val output = parse_hammer_facts(toplevel, thy1, filter, adds, dels).force.retrieveNow
+  def extract_hammer_facts(
+      filter: String = "mepo",
+      adds: List[String] = List[String](),
+      dels: List[String] = List[String]()
+  ): String = {
+    val output =
+      parse_hammer_facts(toplevel, thy1, filter, adds, dels).force.retrieveNow
     output
   }
 
@@ -1148,8 +1163,18 @@ class IsaREPL(
     get_dependent_thms_with_thy_names(toplevel, theorem_name).force.retrieveNow
   }
 
-  def extract_hammer_facts_with_thy_names(filter: String = "mesh", adds: List[String] = List[String](), dels: List[String] = List[String]()): String = {
-    val output = parse_hammer_facts_with_theory_names(toplevel, thy1, filter, adds, dels).force.retrieveNow
+  def extract_hammer_facts_with_thy_names(
+      filter: String = "mesh",
+      adds: List[String] = List[String](),
+      dels: List[String] = List[String]()
+  ): String = {
+    val output = parse_hammer_facts_with_theory_names(
+      toplevel,
+      thy1,
+      filter,
+      adds,
+      dels
+    ).force.retrieveNow
     output
   }
 
@@ -1171,9 +1196,9 @@ class IsaREPL(
 
   // reset isabelle and thy to be proved
   def reset_isabelle(path: String): String = {
-    path_to_file = path
-    currentTheoryName = path_to_file.split("/").last.replace(".thy", "")
-    fileContent = Files.readString(Path.of(path_to_file))
+    path_to_thy = path
+    currentTheoryName = path_to_thy.split("/").last.replace(".thy", "")
+    fileContent = Files.readString(Path.of(path_to_thy))
     fileContentCopy = fileContent
     thy1 = theoryManager.beginTheory()
     toplevel = init_toplevel().force.retrieveNow
@@ -1182,11 +1207,11 @@ class IsaREPL(
   }
 
   def exit_isabelle(): String = {
-      // remove temp directory
-      cleanupAll()
-      // exit isabelle
-      isabelle.destroy()
-      "Destroyed"
+    // remove temp directory
+    cleanupAll()
+    // exit isabelle
+    isabelle.destroy()
+    "Destroyed"
   }
 
   if (debug) println("Checkpoint 15")
@@ -1237,5 +1262,3 @@ class IsaREPL(
   def get_num_of_threads: Int =
     num_of_threads().force.retrieveNow
 }
-
-
