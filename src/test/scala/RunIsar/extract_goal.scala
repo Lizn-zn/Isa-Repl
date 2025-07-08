@@ -109,7 +109,7 @@ class ExtractGoalTests extends AnyFunSuite {
             have "f (f m) = m + 1987" and "f (f n) = n + 1987"
               by auto
       """)
-    val result = isa_repl.subgoal_finished()
+    val result = isa_repl.check_no_subgoals()
     assert(result == true)
     isa_repl.step("""
         show "m = n" 

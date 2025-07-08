@@ -41,7 +41,7 @@ def test_check_no_subgoals():
             have "f (f m) = m + 1987" and "f (f n) = n + 1987"
               by auto
     """)
-    print(isa_repl._subgoal_finished())
+    print(isa_repl._proof_finished())
 
 test_check_no_subgoals()
 
