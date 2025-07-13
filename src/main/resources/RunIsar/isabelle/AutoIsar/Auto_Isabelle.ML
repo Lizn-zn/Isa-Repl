@@ -1,83 +1,100 @@
 (*  Title:      Auto_Isabelle.ML
-    Modified by Zenan Li.
-
-Try a combination of proof methods. Tweak from the try0.ML.
-In Scala env, timeout mechanism is not working.
+    Author:     Zenan Li and Baoding He
+    Description: Try a combination of proof methods. Tweak from the try0.ML.
+                 In Scala env, timeout mechanism is not working.
 *)
 
 structure Auto_Isabelle : sig
   val clean_theorem_text : string -> string
   type result = {name: string, command: string, time: int, state: Proof.state}
-  val try_close : Time.time -> Proof.state ->  bool * string * string
-  val retrieve_facts : Proof.state -> theory -> string ->  string list -> string list -> string 
-  val retrieve_facts_with_theory_names : Proof.state -> theory -> string ->  string list -> string list -> string
-  val mash_relearn: Proof.state -> theory -> unit
+  val try_close : Time.time -> Proof.state -> bool * string * string
+  val retrieve_facts : Proof.state -> theory -> string -> string list -> string list -> string 
+  val retrieve_facts_with_theory_names : Proof.state -> theory -> string -> string list -> string list -> string
+  val mash_relearn : Proof.state -> theory -> unit
 end = struct
 
-fun clean_theorem_text (thm_text : string) = 
-          XML.content_of (YXML.parse_body thm_text);
+(* ============================================================================
+   Utility functions
+   ============================================================================ *)
+
+fun clean_theorem_text thm_text = 
+  XML.content_of (YXML.parse_body thm_text);
 
 val num_goals = Thm.nprems_of o #goal o Proof.goal;
 
+(* List of proof methods to try *)
 val named_methods =
   ["simp", "auto", "blast", "argo", "linarith", "presburger",
    "algebra", "fast", "fastforce", "force", "meson", "satx", "order"];
 
+(* Parse a method string into a method *)
 fun parse_method ctxt s =
   enclose "(" ")" s
   |> Token.explode (Thy_Header.get_keywords' ctxt) Position.start
   |> filter Token.is_proper
   |> Scan.read Token.stopper Method.parse
-  |> (fn SOME (Method.Source src, _) => src | _ => raise Fail "expected Source")
+  |> (fn SOME (Method.Source src, _) => src | _ => raise Fail "expected Source");
 
+(* Apply a tactic and return timing information *)
 fun simple_apply tac st =
   let
     val result = try (fn () => Seq.pull (tac st)) ()
   in
     case Option.join result of
-        SOME (st', _) => (Time.zeroTime, st')
-      | NONE => (Time.zeroTime, st)
-  end
+      SOME (st', _) => (Time.zeroTime, st')
+    | NONE => (Time.zeroTime, st)
+  end;
 
+(* Create antiquotation markup *)
 fun antiquot s = "\\" ^ "<open>" ^ s ^ "\\" ^ "<close>";
 
-type result = {name: string, command: string, time: int, state: Proof.state}
+(* ============================================================================
+   Result type definition
+   ============================================================================ *)
 
+type result = {name: string, command: string, time: int, state: Proof.state};
+
+(* ============================================================================
+   Method application
+   ============================================================================ *)
+
+(* Apply a named method to the current proof state *)
 fun apply_named_method name _ st =
-    let
-      val ctxt = Proof.context_of st;
-      val local_facts = Facts.props (Proof_Context.facts_of ctxt) |> map #1 |> take 10; 
-      val attrs =  "";
-      val text =
-        name ^ attrs
-        |> parse_method ctxt
-        |> Method.method_cmd ctxt
-        |> Method.Basic
-        |> (fn m => Method.Combinator (Method.no_combinator_info, Method.Select_Goals 1, [m]));
-      val apply =
-        Proof.using [local_facts |> map (rpair [] o single)]
-        #> Proof.refine text #> Seq.filter_results;
-
-      val (time, st') = simple_apply apply st;
-      val num_after = num_goals st';
-      val command =
-        (if null local_facts then "" 
-            else "using " ^ space_implode " " 
+  let
+    val ctxt = Proof.context_of st;
+    val local_facts = Facts.props (Proof_Context.facts_of ctxt) |> map #1 |> take 10; 
+    val text =
+      name
+      |> parse_method ctxt
+      |> Method.method_cmd ctxt
+      |> Method.Basic
+      |> (fn m => Method.Combinator (Method.no_combinator_info, Method.Select_Goals 1, [m]));
+    val apply =
+      Proof.using [local_facts |> map (rpair [] o single)]
+      #> Proof.refine text #> Seq.filter_results;
+    val (time, st') = simple_apply apply st;
+    val num_after = num_goals st';
+    val command =
+      (if null local_facts then "" 
+       else "using " ^ space_implode " " 
             (map (fn thm => antiquot (Thm.string_of_thm ctxt thm)) local_facts) ^ " ") ^
-        (if num_after = 0 then "by " else "") ^ name
-      in
-         if num_after = 0 then (
-             SOME {name = name, command = command, time = Time.toMilliseconds time, state = st'}
-          ) else (
-            NONE
-            )
-   end 
+      (if num_after = 0 then "by " else "") ^ name
+  in
+    if num_after = 0 then
+      SOME {name = name, command = command, time = Time.toMilliseconds time, state = st'}
+    else
+      NONE
+  end;
 
+(* ============================================================================
+   Asynchronous proof attempts
+   ============================================================================ *)
 
+(* Try to close the proof asynchronously using multiple methods *)
 fun try_close_async st =
   Future.fork (fn () =>
     let
-      val apply_methods = map apply_named_method named_methods
+      val apply_methods = map apply_named_method named_methods;
       val results =
         map (fn method =>
           case method (SOME (seconds 0.0)) st of
@@ -90,113 +107,119 @@ fun try_close_async st =
         [] => (false, "All Failed", "")
       | {name, command, ...} :: _ =>
           (true, name, "Try this: " ^ Active.sendback_markup_command command)
-    end)
+    end);
 
-(* fun try_close st = Future.join (try_close_async st) *)
-
+(* Try to close the proof with timeout *)
 fun try_close timeout st =
   let
-    val future = try_close_async st
-    val start_time = Time.now ()
-    fun check_timeout () = Time.now () - start_time > timeout
+    val future = try_close_async st;
+    val start_time = Time.now ();
+    fun check_timeout () = Time.now () - start_time > timeout;
     fun poll interval =
-      if Future.is_finished future
-      then Future.join future
-      else if check_timeout ()
-      then (Future.cancel future; (false, "All tactics timed out", ""))
-      else (OS.Process.sleep (seconds interval); poll (Real.min ((interval * 2.0), 1.0)))
+      if Future.is_finished future then
+        Future.join future
+      else if check_timeout () then
+        (Future.cancel future; (false, "All tactics timed out", ""))
+      else
+        (OS.Process.sleep (seconds interval); poll (Real.min ((interval * 2.0), 1.0)))
   in
     poll 0.1
-  end
+  end;
 
-(* 
-  retrive facts from the proof state
-  filter: string, the filter to use
-  adds: string list, the facts to add
-  dels: string list, the facts to delete
-*)
+(* ============================================================================
+   Fact retrieval utilities
+   ============================================================================ *)
 
-fun get_refs_and_token_lists (name) = (Facts.named name, []);
+(* Create fact references and token lists *)
+fun get_refs_and_token_lists name = (Facts.named name, []);
 
-fun retrieve_facts state thy filter adds dels  = 
+(* Common parameters for fact retrieval *)
+fun make_override adds dels =
   let
-     val ctxt = Proof.context_of state;
-     val {facts = chained_thms, goal, ...} = Proof.goal state;
-     val (_, hyp_ts, concl_t) = ATP_Util.strip_subgoal goal 1 ctxt;
-     val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
-     val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
-     val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
-     val params = Sledgehammer_Commands.default_params thy
-                  [("fact_filter", filter)];
-     val {induction_rules, max_facts, ...} = params;
-     val all_facts = (Sledgehammer_Fact.nearly_all_facts_of_context ctxt false override chained_thms hyp_ts) concl_t;
-     val max_num_facts = (case max_facts of
-                              SOME n => n
-                            | NONE => 2048)
-     val fact_lst = (Sledgehammer_MaSh.relevant_facts ctxt params "" max_num_facts override hyp_ts concl_t)
-                            all_facts
-     val induction_rules = the_default (Sledgehammer_Prover.Exclude) induction_rules
-     val factss = map (apsnd (Sledgehammer_Prover.maybe_filter_out_induction_rules induction_rules)) fact_lst
-     val fact_string = Sledgehammer.string_of_factss factss
-  in 
-     fact_string
-  end
+    val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
+    val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
+  in
+    {add = adds_refs_and_token_lists, del = dels_refs_and_token_lists, only = false}
+  end;
 
+(* Get facts from proof state with common logic *)
+fun get_facts_from_state state thy filter adds dels =
+  let
+    val ctxt = Proof.context_of state;
+    val {facts = chained_thms, goal, ...} = Proof.goal state;
+    val (_, hyp_ts, concl_t) = ATP_Util.strip_subgoal goal 1 ctxt;
+    val override = make_override adds dels;
+    val params = Sledgehammer_Commands.default_params thy [("fact_filter", filter)];
+    val {induction_rules, max_facts, ...} = params;
+    val all_facts = Sledgehammer_Fact.nearly_all_facts_of_context ctxt false override chained_thms hyp_ts concl_t;
+    val max_num_facts = the_default 2048 max_facts;
+    val fact_lst = Sledgehammer_MaSh.relevant_facts ctxt params "" max_num_facts override hyp_ts concl_t all_facts;
+    val induction_rules = the_default Sledgehammer_Prover.Exclude induction_rules;
+    val factss = map (apsnd (Sledgehammer_Prover.maybe_filter_out_induction_rules induction_rules)) fact_lst;
+  in
+    (factss, ctxt)
+  end;
+
+(* ============================================================================
+   Fact retrieval functions
+   ============================================================================ *)
+
+(* Retrieve facts from the proof state
+   @param state - current proof state
+   @param thy - theory
+   @param filter - fact filter to use
+   @param adds - facts to add
+   @param dels - facts to delete
+   @return formatted fact string
+*)
+fun retrieve_facts state thy filter adds dels = 
+  let
+    val (factss, _) = get_facts_from_state state thy filter adds dels;
+  in
+    Sledgehammer.string_of_factss factss
+  end;
+
+(* Format facts with theory names *)
 fun string_of_facts_with_theory_names filter facts =
-  string_of_int (length facts) ^ "<\\SEP>" ^ (if filter = "" then "" else filter) ^ "<\\SEP>" ^ 
-  (space_implode "<\\SEP>" (map (fn x => String.concat [(Thm.theory_long_name (#2 x)), "<\\INNER_SEP>", (Thm.derivation_name (#2 x)), "<\\INNER_SEP>", #1 (#1 x)]) facts))
+  string_of_int (length facts) ^ "<\\SEP>" ^ 
+  (if filter = "" then "" else filter) ^ "<\\SEP>" ^ 
+  (space_implode "<\\SEP>" 
+    (map (fn x => String.concat [
+      Thm.theory_long_name (#2 x), "<\\INNER_SEP>",
+      Thm.derivation_name (#2 x), "<\\INNER_SEP>",
+      #1 (#1 x)
+    ]) facts));
 
+(* Format fact lists with theory names *)
 fun string_of_factss_with_theory_names factss =
   if forall (null o snd) factss then
     "Found no relevant facts"
   else
-    cat_lines (map (fn (filter, facts) => string_of_facts_with_theory_names filter facts) factss)
+    cat_lines (map (fn (filter, facts) => string_of_facts_with_theory_names filter facts) factss);
 
-fun retrieve_facts_with_theory_names state thy filter adds dels  =
+(* Retrieve facts with theory names *)
+fun retrieve_facts_with_theory_names state thy filter adds dels =
   let
-     val ctxt = Proof.context_of state;
-     val {facts = chained_thms, goal, ...} = Proof.goal state;
-     val (_, hyp_ts, concl_t) = ATP_Util.strip_subgoal goal 1 ctxt;
-     val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
-     val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
-     val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
-     val params = Sledgehammer_Commands.default_params thy
-                  [("fact_filter", filter)];
-     val {induction_rules, max_facts, ...} = params;
-     val all_facts = (Sledgehammer_Fact.nearly_all_facts_of_context ctxt false override chained_thms hyp_ts) concl_t;
-     val max_num_facts = (case max_facts of
-                              SOME n => n
-                            | NONE => 2048)
-     val fact_lst = (Sledgehammer_MaSh.relevant_facts ctxt params "" max_num_facts override hyp_ts concl_t)
-                            all_facts
-     val induction_rules = the_default (Sledgehammer_Prover.Exclude) induction_rules
-     val factss = map (apsnd (Sledgehammer_Prover.maybe_filter_out_induction_rules induction_rules)) fact_lst
-     val fact_string = string_of_factss_with_theory_names factss
+    val (factss, _) = get_facts_from_state state thy filter adds dels;
   in
-     fact_string
-  end
+    string_of_factss_with_theory_names factss
+  end;
 
+(* ============================================================================
+   MaSh learning
+   ============================================================================ *)
+
+(* Relearn MaSh with current proof state *)
 fun mash_relearn state thy =
   let
-     val ctxt = Proof.context_of state;
-      val adds = []
-      val dels = []
-     val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
-     val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
-     val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
-     val params = Sledgehammer_Commands.default_params thy
-                  [("timeout", string_of_real 2.0),
-("slice", "false"), ("preplay_timeout", "0")];
-
-     val _ = Sledgehammer_MaSh.mash_unlearn ctxt;
-
-     val _ = Sledgehammer_MaSh.mash_learn ctxt
-                 (params
-                     )
-                 override (#facts (Proof.goal state))
-                 false;
-in
-()
-  end
+    val ctxt = Proof.context_of state;
+    val override = make_override [] [];
+    val params = Sledgehammer_Commands.default_params thy
+      [("timeout", string_of_real 2.0), ("slice", "false"), ("preplay_timeout", "0")];
+    val _ = Sledgehammer_MaSh.mash_unlearn ctxt;
+    val _ = Sledgehammer_MaSh.mash_learn ctxt params override (#facts (Proof.goal state)) false;
+  in
+    ()
+  end;
 
 end

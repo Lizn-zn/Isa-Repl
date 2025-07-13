@@ -10,11 +10,9 @@ gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_conv
 isa_repl = gateway.entry_point
 
 # Initialize REPL with a theory file
-theory_file = os.path.abspath("/home/hbd/verification/l4v/proof/invariant-abstract/Deterministic_AI.thy")
+theory_file = os.path.abspath("/path/to/l4v/proof/invariant-abstract/Deterministic_AI.thy")
 
-# print(theory_file)
-
-isa_repl._initializeRepl(theory_file, "/home/hbd/verification/l4v", "AInvs", ["/home/hbd/verification/l4v"])
+isa_repl._initializeRepl(theory_file, "/path/to/l4v", "AInvs", ["/path/to/l4v"])
 
 with open(theory_file, "r", encoding="utf-8") as f:
     content = f.read()

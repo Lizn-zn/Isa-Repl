@@ -722,8 +722,7 @@ class IsaREPL(
          |""".stripMargin
     )
 
-    val mash_relearn
-      : MLFunction2[ToplevelState, Theory, Unit] =
+    val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
     compileFunction[ToplevelState, Theory, Unit](
       s"""fn (state, thy) =>
          |    let
