@@ -353,7 +353,7 @@ class IsaReplApplication {
     result
   }
 
-  def _subgoal_finished(): String = {
+  def _proof_finished(): String = {
     val result =
       try {
         if (repl.check_no_subgoals()) {
