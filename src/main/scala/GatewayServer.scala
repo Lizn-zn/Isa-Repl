@@ -305,6 +305,18 @@ class IsaReplApplication {
     result
   }
 
+  def _mash_state_relearn(): String = {
+    val result =
+      try {
+        repl.mash_state_relearn()
+        "True"
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed to relearn from Isar proofs. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
   def _clone_tls(tls_name: String): String = {
     val result =
       try {
@@ -341,7 +353,7 @@ class IsaReplApplication {
     result
   }
 
-  def _proof_finished(): String = {
+  def _subgoal_finished(): String = {
     val result =
       try {
         if (repl.check_no_subgoals()) {

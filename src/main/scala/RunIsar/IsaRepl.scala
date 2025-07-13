@@ -722,6 +722,18 @@ class IsaREPL(
          |""".stripMargin
     )
 
+    val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
+    compileFunction[ToplevelState, Theory, Unit](
+      s"""fn (state, thy) =>
+         |    let
+         |      val proof_state = Toplevel.proof_of state;
+         |      val _ = $Auto_Isabelle.mash_relearn proof_state thy;
+         |    in
+         |      ()
+         |    end
+         |""".stripMargin
+    )
+
   val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
@@ -1191,6 +1203,14 @@ class IsaREPL(
       filter,
       adds,
       dels
+    ).force.retrieveNow
+    output
+  }
+
+  def mash_state_relearn(): Unit = {
+    val output = mash_relearn(
+      toplevel,
+      thy1,
     ).force.retrieveNow
     output
   }
