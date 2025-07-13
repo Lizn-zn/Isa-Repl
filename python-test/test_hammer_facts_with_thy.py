@@ -10,7 +10,7 @@ gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_conv
 isa_repl = gateway.entry_point
 
 # Initialize REPL with a theory file
-theory_file = os.path.abspath("/home/hbd/verification/l4v/proof/invariant-abstract/KHeap_AI.thy")
+theory_file = os.path.abspath("/home/hbd/verification/l4v/proof/invariant-abstract/Deterministic_AI.thy")
 
 # print(theory_file)
 
@@ -25,7 +25,7 @@ steps = isa_repl._parse_to_steps(content).split("<\\SEP>")
 # Add a proof step
 for i, step in enumerate(steps):
     # print(i, step)
-    if "lemma get_object_inv" in step:
+    if "lemma no_children_empty_desc" in step:
         target = step
         break
 
@@ -115,6 +115,7 @@ else:
     while i < len(steps):
         result = isa_repl._step(unprocessed + steps[i])
         if target in unprocessed + steps[i]:
+            print(isa_repl._mash_state_relearn())
             result = isa_repl._extract_hammer_facts_with_thy_names("mesh")
             result_lst = result.split("<\\SEP>")
             print(result_lst[:10])

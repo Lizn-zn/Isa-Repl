@@ -11,6 +11,7 @@ structure Auto_Isabelle : sig
   val try_close : Time.time -> Proof.state ->  bool * string * string
   val retrieve_facts : Proof.state -> theory -> string ->  string list -> string list -> string 
   val retrieve_facts_with_theory_names : Proof.state -> theory -> string ->  string list -> string list -> string
+  val mash_relearn: Proof.state -> theory -> unit
 end = struct
 
 fun clean_theorem_text (thm_text : string) = 
@@ -173,6 +174,29 @@ fun retrieve_facts_with_theory_names state thy filter adds dels  =
      val fact_string = string_of_factss_with_theory_names factss
   in
      fact_string
+  end
+
+fun mash_relearn state thy =
+  let
+     val ctxt = Proof.context_of state;
+      val adds = []
+      val dels = []
+     val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
+     val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
+     val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false}
+     val params = Sledgehammer_Commands.default_params thy
+                  [("timeout", string_of_real 2.0),
+("slice", "false"), ("preplay_timeout", "0")];
+
+     val _ = Sledgehammer_MaSh.mash_unlearn ctxt;
+
+     val _ = Sledgehammer_MaSh.mash_learn ctxt
+                 (params
+                     )
+                 override (#facts (Proof.goal state))
+                 false;
+in
+()
   end
 
 end
