@@ -24,12 +24,21 @@ class IsaReplApplication {
 
   private var repl: IsaREPL = _
 
-  def _initializeRepl(pathToThy: String): Unit = {
-    repl = new IsaREPL(
-      isabelle_home = isabelleHome,
-      path_to_thy = pathToThy,
-      working_directory = workingDirectory
-    )
+  def _initializeRepl(pathToThy: String): String = {
+    val result = 
+      try {
+        repl = new IsaREPL(
+          isabelle_home = isabelleHome,
+            path_to_thy = pathToThy,
+            working_directory = workingDirectory
+          )
+          "True" + "<\\SEP>" + "initialize successfully"
+      } catch {
+        case e: Exception =>
+          println(s"Error during initialization: ${e.getMessage}")
+          "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
+      }
+    result
   }
 
   def _initializeRepl(
@@ -37,14 +46,23 @@ class IsaReplApplication {
       workingDirectory: String,
       session: String,
       sessionRoots: util.ArrayList[String]
-  ): Unit = {
-    repl = new IsaREPL(
-      isabelle_home = isabelleHome,
-      path_to_thy = pathToThy,
-      working_directory = workingDirectory,
-      session = session,
-      session_roots = sessionRoots.asScala.toList
-    )
+  ): String = {
+    val result = 
+      try {
+        repl = new IsaREPL(
+          isabelle_home = isabelleHome,
+          path_to_thy = pathToThy,
+          working_directory = workingDirectory,
+          session = session,
+          session_roots = sessionRoots.asScala.toList
+        )
+        "True" + "<\\SEP>" + "initialize successfully"
+      } catch {
+        case e: Exception =>
+          println(s"Error during initialization: ${e.getMessage}")
+          "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
+      }
+    result
   }
 
   def _resetRepl(pathToThy: String): Unit = {
