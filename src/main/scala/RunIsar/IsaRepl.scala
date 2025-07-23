@@ -580,7 +580,7 @@ class IsaREPL(
     isabelle_home = isabelle_home,
     path_to_thy = path_to_thy,
     working_directory = working_directory,
-    logic = session,
+    session = session,
     sessionRoots = session_roots,
     isabelle = isabelle,
     debug = debug
