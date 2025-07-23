@@ -41,7 +41,7 @@ class TheoryManager(
     val isabelle_home: String,
     val path_to_thy: String,
     val working_directory: String,
-    val logic: String,
+    val session: String,
     val sessionRoots: List[String],
     implicit val isabelle: Isabelle,
     val debug: Boolean = false
@@ -188,7 +188,7 @@ class TheoryManager(
     if (debug) println("Checkpoint 9_4")
     for (theory_name <- header.imports) {
       if (importMap.contains(theory_name)) {
-        registers += s"${logic}.${importMap(theory_name)}"
+        registers += s"${session}.${importMap(theory_name)}"
       } else registers += theory_name
     }
     if (debug) println("Checkpoint 9_5")
