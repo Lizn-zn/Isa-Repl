@@ -1145,16 +1145,31 @@ class IsaREPL(
     (ok, result)
   }
 
-  def check_by_nitpick(): String = {
+  def check_by_nitpick(): (Boolean, String) = {
   // Specifies the expected outcome, which must be one of the following:
   // • genuine: Nitpick found a genuine counterexample.
-  // • quasi_genuine: Nitpick found a “quasi genuine” counterexample
+  // • quasi_genuine: Nitpick found a "quasi genuine" counterexample
   //      (i.e., a counterexample that is genuine unless it contradicts a missing axiom or a dangerous option was used inappropriately).
   // • potential: Nitpick found a potentially spurious counterexample.
   // • none: Nitpick found no counterexample.
   // • unknown: Nitpick encountered some problem (e.g., Kodkod ran out of memory).
     val result = normal_with_nitpick(toplevel).force.retrieveNow
-    result
+    val hasCounterexample = result match {
+      case "genuine" | "quasi_genuine" | "potential" => true
+      case "none" | "unknown" => false
+      case _ => false // Default case for unexpected results
+    }
+    
+    val message = result match {
+      case "genuine" => "Nitpick found a genuine counterexample"
+      case "quasi_genuine" => "Nitpick found a quasi-genuine counterexample (may contradict missing axioms)"
+      case "potential" => "Nitpick found a potentially spurious counterexample"
+      case "none" => "Nitpick found no counterexample - goal appears valid"
+      case "unknown" => "Nitpick encountered a problem (e.g., out of memory)"
+      case _ => s"Unexpected nitpick result: $result"
+    }
+    
+    (hasCounterexample, message)
   }
 
   def translate_to_smt(): String = {

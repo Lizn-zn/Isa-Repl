@@ -34,9 +34,9 @@ class NitpickTests extends AnyFunSuite {
     isa_repl.step("""
                   lemma "False"
                 """)
-    val result: String = isa_repl.check_by_nitpick()
+    val (ok, result) = isa_repl.check_by_nitpick()
     println(result)
-    assert(result == "genuine")
+    assert(result == "Nitpick found a genuine counterexample")
     val res: String = isa_repl.step("sorry")
     assert(res == "")
   }
@@ -47,9 +47,9 @@ class NitpickTests extends AnyFunSuite {
     isa_repl.step("""
                   lemma "True"
                 """)
-    val result = isa_repl.check_by_nitpick()
+    val (ok, result) = isa_repl.check_by_nitpick()
     println(result)
-    assert(result == "none")
+    assert(result == "Nitpick found no counterexample - goal appears valid")
   }
 
 }

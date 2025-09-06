@@ -191,7 +191,12 @@ class IsaReplApplication {
   def _check_by_nitpick(): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.check_by_nitpick()
+        val (hasCounterexample, message) = repl.check_by_nitpick()
+        if (hasCounterexample) {
+          "True" + "<\\SEP>" + message
+        } else {
+          "False" + "<\\SEP>" + message
+        }
       } catch {
         case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for check the goal by nitpick. Get msg: ${e.getMessage}"

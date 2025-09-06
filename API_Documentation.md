@@ -119,8 +119,14 @@ Try to close current goal.
 Check current goal using nitpick.
 
 **Returns:**
-- Success: `"True<\\SEP>{check_result}"`
-- Failure: `"False<\\SEP>failed for check the goal by nitpick. Get msg: {error_message}"`
+- Has counterexample: `"True<\\SEP>{message}"` where message is one of:
+  - "Nitpick found a genuine counterexample"
+  - "Nitpick found a quasi-genuine counterexample (may contradict missing axioms)"
+  - "Nitpick found a potentially spurious counterexample"
+- No counterexample: `"False<\\SEP>{message}"` where message is one of:
+  - "Nitpick found no counterexample - goal appears valid"
+  - "Nitpick encountered a problem (e.g., out of memory)"
+- Error: `"False<\\SEP>failed for check the goal by nitpick. Get msg: {error_message}"`
 - Timeout: `"False<\\SEP>failed for check the goal by nitpick. Get msg: {timeout_message}"`
 
 #### `_proof_finished() -> String`
