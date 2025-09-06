@@ -638,9 +638,9 @@ class IsaREPL(
             |
             |       fun go_run () = 
             |         let 
-            |           val (str, _) = $SMT_Translate.translate ctxt "z3" [] comments ithms
+            |           val (str_result, _) = $SMT_Translate.translate ctxt "z3" [] comments ithms
             |         in 
-            |           str  end  
+            |           str_result  end  
             |    in  
             |       Timeout.apply (Time.fromSeconds 180) go_run () end 
           |""".stripMargin
@@ -744,6 +744,26 @@ class IsaREPL(
         |          (success, method, $Auto_Isabelle.clean_theorem_text step)
         |        end
         |""".stripMargin
+    )
+
+  val thy_for_nitpick = thy1
+  val Nitpick: String =
+    thy_for_nitpick.importMLStructureNow("Nitpick")
+  val Nitpick_Commands: String =
+    thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
+  val normal_with_nitpick: MLFunction[ToplevelState, String] =
+    compileFunction[ToplevelState, String](
+      s"""fn (state) =>
+         |    let
+         |      val proof_state = Toplevel.proof_of state;
+         |      val step = Toplevel.proof_position_of state;
+         |      val {context = _, facts, goal} = Proof.goal proof_state;
+         |      val params = $Nitpick_Commands.default_params @{theory} [("show_all", "true"), ("timeout", "60")]
+         |      val (str_result, _) = $Nitpick.pick_nits_in_subgoal proof_state params $Nitpick.Normal 1 step
+         |    in
+         |      str_result
+         |    end
+         |""".stripMargin
     )
 
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
@@ -1123,6 +1143,18 @@ class IsaREPL(
   def try_close(timeout_in_millis: Int = 12000): (Boolean, String) = {
     val (ok, result) = normal_with_try0(toplevel, timeout_in_millis)
     (ok, result)
+  }
+
+  def check_by_nitpick(): String = {
+  // Specifies the expected outcome, which must be one of the following:
+  // • genuine: Nitpick found a genuine counterexample.
+  // • quasi_genuine: Nitpick found a “quasi genuine” counterexample
+  //      (i.e., a counterexample that is genuine unless it contradicts a missing axiom or a dangerous option was used inappropriately).
+  // • potential: Nitpick found a potentially spurious counterexample.
+  // • none: Nitpick found no counterexample.
+  // • unknown: Nitpick encountered some problem (e.g., Kodkod ran out of memory).
+    val result = normal_with_nitpick(toplevel).force.retrieveNow
+    result
   }
 
   def translate_to_smt(): String = {

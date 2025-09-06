@@ -188,6 +188,19 @@ class IsaReplApplication {
     result
   }
 
+  def _check_by_nitpick(): String = {
+    val result =
+      try {
+        "True" + "<\\SEP>" + repl.check_by_nitpick()
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for check the goal by nitpick. Get msg: ${e.getMessage}"
+        case e: TimeoutException =>
+          "False" + "<\\SEP>" + s"failed for check the goal by nitpick. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
   def _parse_to_steps(isar_string: String): String = {
     val result =
       try {
