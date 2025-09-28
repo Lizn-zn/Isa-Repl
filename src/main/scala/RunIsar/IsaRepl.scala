@@ -972,7 +972,7 @@ class IsaREPL(
 
   def normal_with_nitpick(
       top_level_state: ToplevelState,
-      timeout_in_millis: Int = 60000 // 60 seconds
+      timeout_in_millis: Int = 65000 // 65 seconds
   ): String = {
     val f_res: Future[String] = Future.apply {
       val first_result = normal_with_nitpick(top_level_state, thy1).force.retrieveNow
