@@ -155,7 +155,7 @@ fun try_nitpick timeout st thy =
       if Future.is_finished future then
         Future.join future
       else if check_timeout () then
-        (Future.cancel future; (false, "All tactics timed out"))
+        (Future.cancel future; (false, "Nitpick timed out"))
       else
         (OS.Process.sleep (seconds interval); poll (Real.min ((interval * 2.0), 1.0)))
   in
