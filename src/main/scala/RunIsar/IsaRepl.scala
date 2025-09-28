@@ -974,6 +974,18 @@ class IsaREPL(
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
+  def normal_with_nitpick(
+      top_level_state: ToplevelState,
+      timeout_in_millis: Int = 60000 // 60 seconds
+  ): String = {
+    val f_res: Future[String] = Future.apply {
+      val first_result = normal_with_nitpick(top_level_state).force.retrieveNow
+      first_result
+    }
+    if (debug) println("Checkpoint Nitpick: Finish & Await result")
+    Await.result(f_res, Duration(timeout_in_millis, "millis"))
+  }
+
   if (debug) println("Checkpoint 13: Parse text")
   // return the list of (transition and current step text)
   val transitions_and_texts = parse_text(thy1, fileContent).force.retrieveNow
@@ -1145,7 +1157,7 @@ class IsaREPL(
     (ok, result)
   }
 
-  def check_by_nitpick(): (Boolean, String) = {
+  def check_by_nitpick(timeout_in_millis: Int = 60000): (Boolean, String) = {
   // Specifies the expected outcome, which must be one of the following:
   // • genuine: Nitpick found a genuine counterexample.
   // • quasi_genuine: Nitpick found a "quasi genuine" counterexample
@@ -1153,7 +1165,7 @@ class IsaREPL(
   // • potential: Nitpick found a potentially spurious counterexample.
   // • none: Nitpick found no counterexample.
   // • unknown: Nitpick encountered some problem (e.g., Kodkod ran out of memory).
-    val result = normal_with_nitpick(toplevel).force.retrieveNow
+    val result = normal_with_nitpick(toplevel, timeout_in_millis)
     val hasCounterexample = result match {
       case "genuine" | "quasi_genuine" | "potential" => true
       case "none" | "unknown" => false
