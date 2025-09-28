@@ -8,6 +8,7 @@ structure Auto_Isabelle : sig
   val clean_theorem_text : string -> string
   type result = {name: string, command: string, time: int, state: Proof.state}
   val try_close : Time.time -> Proof.state -> bool * string * string
+  val try_nitpick: Time.time -> Toplevel.state -> theory -> bool * string
   val retrieve_facts : Proof.state -> theory -> string -> string list -> string list -> string 
   val retrieve_facts_with_theory_names : Proof.state -> theory -> string -> string list -> string list -> string
   val mash_relearn : Proof.state -> theory -> unit
@@ -126,6 +127,43 @@ fun try_close timeout st =
     poll 0.1
   end;
 
+(* Try to refuse the proof asynchronously using nitpick *)
+fun try_nitpick_async st thy =
+  Future.fork (fn () =>
+    let
+    val proof_state = Toplevel.proof_of st;
+    val step = Toplevel.proof_position_of st;
+
+    (* val {context = _, facts, goal} = Proof.goal proof_state; *)
+
+    val params = Nitpick_Commands.default_params thy
+                   [("show_all", "true"), ("timeout", "60")];
+
+    val (str_result, _) = Nitpick.pick_nits_in_subgoal
+                            proof_state params Nitpick.Normal 1 step;
+    in
+      (true, str_result)
+    end);
+
+(* Try to nitpick the proof with timeout *)
+fun try_nitpick timeout st thy =
+  let
+    val future = try_nitpick_async st thy;
+    val start_time = Time.now ();
+    fun check_timeout () = Time.now () - start_time > timeout;
+    fun poll interval =
+      if Future.is_finished future then
+        Future.join future
+      else if check_timeout () then
+        (Future.cancel future; (false, "All tactics timed out"))
+      else
+        (OS.Process.sleep (seconds interval); poll (Real.min ((interval * 2.0), 1.0)))
+  in
+    poll 0.1
+  end;
+
+
+
 (* ============================================================================
    Fact retrieval utilities
    ============================================================================ *)
@@ -186,7 +224,9 @@ fun string_of_facts_with_theory_names filter facts =
   (space_implode "<\\SEP>" 
     (map (fn x => String.concat [
       Thm.theory_long_name (#2 x), "<\\INNER_SEP>",
-      Thm.derivation_name (#2 x), "<\\INNER_SEP>",
+      (* New version should be as follows *)
+      (* Thm_Name.print (Thm.derivation_name (#2 x)), "<\\INNER_SEP>", *)
+      Thm.derivation_name (#2 x), "<\\INNER_SEP>", 
       #1 (#1 x)
     ]) facts));
 

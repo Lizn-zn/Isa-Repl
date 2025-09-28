@@ -751,15 +751,11 @@ class IsaREPL(
     thy_for_nitpick.importMLStructureNow("Nitpick")
   val Nitpick_Commands: String =
     thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
-  val normal_with_nitpick: MLFunction[ToplevelState, String] =
-    compileFunction[ToplevelState, String](
-      s"""fn (state) =>
+  val normal_with_nitpick: MLFunction2[ToplevelState, Theory, String] =
+    compileFunction[ToplevelState, Theory, String](
+      s"""fn (state, thy) =>
          |    let
-         |      val proof_state = Toplevel.proof_of state;
-         |      val step = Toplevel.proof_position_of state;
-         |      val {context = _, facts, goal} = Proof.goal proof_state;
-         |      val params = $Nitpick_Commands.default_params @{theory} [("show_all", "true"), ("timeout", "60")]
-         |      val (str_result, _) = $Nitpick.pick_nits_in_subgoal proof_state params $Nitpick.Normal 1 step
+         |      val (ok, str_result) = $Auto_Isabelle.try_nitpick (Time.fromSeconds 60) state thy;
          |    in
          |      str_result
          |    end
@@ -979,7 +975,7 @@ class IsaREPL(
       timeout_in_millis: Int = 60000 // 60 seconds
   ): String = {
     val f_res: Future[String] = Future.apply {
-      val first_result = normal_with_nitpick(top_level_state).force.retrieveNow
+      val first_result = normal_with_nitpick(top_level_state, thy1).force.retrieveNow
       first_result
     }
     if (debug) println("Checkpoint Nitpick: Finish & Await result")
