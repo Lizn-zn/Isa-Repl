@@ -751,7 +751,7 @@ class IsaREPL(
     thy_for_nitpick.importMLStructureNow("Nitpick")
   val Nitpick_Commands: String =
     thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
-  val normal_with_nitpick: MLFunction2[ToplevelState, Theory, String] =
+  val normal_with_NitPick: MLFunction2[ToplevelState, Theory, String] =
     compileFunction[ToplevelState, Theory, String](
       s"""fn (state, thy) =>
          |    let
@@ -975,7 +975,7 @@ class IsaREPL(
       timeout_in_millis: Int = 65000 // 65 seconds
   ): String = {
     val f_res: Future[String] = Future.apply {
-      val first_result = normal_with_nitpick(top_level_state, thy1).force.retrieveNow
+      val first_result = normal_with_NitPick(top_level_state, thy1).force.retrieveNow
       first_result
     }
     if (debug) println("Checkpoint Nitpick: Finish & Await result")
@@ -1153,7 +1153,7 @@ class IsaREPL(
     (ok, result)
   }
 
-  def check_by_nitpick(timeout_in_millis: Int = 60000): (Boolean, String) = {
+  def check_by_nitpick(timeout_in_millis: Int = 65000): (Boolean, String) = {
   // Specifies the expected outcome, which must be one of the following:
   // • genuine: Nitpick found a genuine counterexample.
   // • quasi_genuine: Nitpick found a "quasi genuine" counterexample
