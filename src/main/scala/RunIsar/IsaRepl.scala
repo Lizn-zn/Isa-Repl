@@ -1,6 +1,6 @@
 package RunIsar
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.{Files, Path, Paths}
 import scala.collection.JavaConverters._
 import util.control.Breaks
 import scala.collection.mutable.ListBuffer
@@ -14,8 +14,7 @@ import scala.concurrent.{
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 import sys.process._
-import _root_.java.nio.file.{Files, Path}
-import _root_.java.io.File
+import java.io.File
 
 import de.unruh.isabelle.control.{Isabelle, IsabelleMLException}
 import de.unruh.isabelle.mlvalue.{
@@ -581,7 +580,7 @@ class IsaREPL(
     isabelle_home = isabelle_home,
     path_to_thy = path_to_thy,
     working_directory = working_directory,
-    logic = session,
+    session = session,
     sessionRoots = session_roots,
     isabelle = isabelle,
     debug = debug
