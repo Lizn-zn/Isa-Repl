@@ -654,10 +654,26 @@ class IsaREPL(
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Commands")
   val Sledgehammer_Prover: String =
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
-  // prove_with_Sledgehammer is mostly identical to check_with_Sledgehammer except for that when the returned Boolean is true, it will
-  // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
-  // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".
+
   if (debug) println("Checkpoint 11")
+
+  /** normal_with_Sledgehammer calls sledgehammer to prove the top goal with
+    * premise modifications.
+    * @param state
+    *   the current Isabelle state
+    * @param thy
+    *   the current Isabelle theory
+    * @param adds
+    *   the list of premises to be added
+    * @param dels
+    *   the list of premises to be deleted
+    * @return
+    *   a pair of a Boolean and a pair of a String and a list of Strings The
+    *   Boolean is true if the top goal is proved. The String is sledgehammer's
+    *   output containing the tactic e.g. "Try this: by blast (0.5 ms)". The
+    *   list of Strings is the list of executable commands to close the top
+    *   subgoal.
+    */
   val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
     String
   ], List[String], (Boolean, (String, List[String]))] =
