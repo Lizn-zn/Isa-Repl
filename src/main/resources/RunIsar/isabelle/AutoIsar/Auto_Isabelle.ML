@@ -9,6 +9,7 @@ structure Auto_Isabelle : sig
   type result = {name: string, command: string, time: int, state: Proof.state}
   val try_close : Time.time -> Proof.state -> bool * string * string
   val try_nitpick: Time.time -> Toplevel.state -> theory -> bool * string
+  val try_quickcheck: Time.time -> Toplevel.state -> theory -> bool * string
   val retrieve_facts : Proof.state -> theory -> string -> string list -> string list -> string 
   val retrieve_facts_with_theory_names : Proof.state -> theory -> string -> string list -> string list -> string
   val mash_relearn : Proof.state -> theory -> unit
@@ -162,7 +163,80 @@ fun try_nitpick timeout st thy =
     poll 0.1
   end;
 
+(* Run Quickcheck asynchronously on subgoal 1.
+   timeout: Time.time — internal timeout passed to Quickcheck, also used for external watchdog
+   st: Toplevel.state
+   thy: theory (kept for compatibility with the Nitpick version, but not used)
+   Returns: (bool * string) — (success flag, formatted Quickcheck output)
+ *)
+fun try_quickcheck_async timeout st _ =
+  Future.fork (fn () =>
+    let
+      val state = Toplevel.proof_of st
 
+      (* Configure Quickcheck parameters inside the proof context:
+         - disable report output
+         - enable quiet mode
+         - set desired number of iterations
+         - set Quickcheck’s internal timeout (expects seconds as real)
+       *)
+      val state' =
+        state
+        |> Proof.map_context
+            (Config.put Quickcheck.report false
+             #> Config.put Quickcheck.quiet  true
+             #> Config.put Quickcheck.iterations 1000
+             #> Config.put Quickcheck.timeout (Time.toReal timeout))
+
+      (* Run Quickcheck on subgoal 1; result is:
+         (bool * (string * term) list) option
+         Some counterexample  → found
+         None                 → no counterexample
+       *)
+      val cex_opt = Quickcheck.quickcheck [] 1 state'
+
+      (* Format the result using Quickcheck’s pretty printer.
+         Quickcheck.pretty_counterex expects:
+           SOME ((bool * (string * term) list), (term * term) list)
+         We give an empty evaluation-term list.
+       *)
+      val ctxt = Proof.context_of state'
+      val msg =
+        Pretty.string_of
+          (Quickcheck.pretty_counterex ctxt true
+             (Option.map (fn cex => (cex, [])) cex_opt))
+    in
+      (true, msg)
+    end)
+
+
+(* Run Quickcheck with an external watchdog timeout.
+   If the asynchronous Quickcheck task does not finish within the
+   given timeout, cancel the Future and return a timeout message.
+ *)
+fun try_quickcheck timeout st thy =
+  let
+    val future = try_quickcheck_async timeout st thy
+    val start_time = Time.now ()
+
+    fun timeout_exceeded () = Time.now () - start_time > timeout
+
+    (* Poll the Future until:
+         - it finishes
+         - or the timeout expires
+       Poll interval doubles up to 1 second to reduce overhead.
+     *)
+    fun poll interval =
+      if Future.is_finished future then
+        Future.join future
+      else if timeout_exceeded () then
+        (Future.cancel future; (false, "Quickcheck timed out"))
+      else
+        (OS.Process.sleep (seconds interval);
+         poll (Real.min (interval * 2.0, 1.0)))
+  in
+    poll 0.1
+  end
 
 (* ============================================================================
    Fact retrieval utilities
