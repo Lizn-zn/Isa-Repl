@@ -41,6 +41,7 @@ import de.unruh.isabelle.pure.{
   TheoryHeader,
   ToplevelState
 }
+import de.unruh.isabelle.misc.Symbols
 
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
@@ -81,6 +82,7 @@ class IsaREPL(
     var session_roots: List[String] = Nil,
     var debug: Boolean = false
 ) {
+  import IsaREPL._
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
@@ -1368,4 +1370,13 @@ class IsaREPL(
 
   def get_num_of_threads: Int =
     num_of_threads().force.retrieveNow
+}
+
+object IsaREPL {
+  def isabelle2unicode(str: String): String = {
+    Symbols.symbolsToUnicode(str)
+  }
+  def unicode2isabelle(str: String): String = {
+    Symbols.unicodeToSymbols(str)
+  }
 }
