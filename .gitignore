@@ -10,6 +10,7 @@ target/*
 .metals/
 /python-test/python-test.iml
 .bsp/
+/out
 
 **/.bloop
 **/.vscode
