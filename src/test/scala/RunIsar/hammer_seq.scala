@@ -20,7 +20,7 @@ class HammerSeqTests extends AnyFunSuite {
     isabelle_home = isabelle_home,
     path_to_thy = path_to_thy,
     working_directory = working_directory,
-    debug = false
+    debug = true
   )
 
   val result0: String =

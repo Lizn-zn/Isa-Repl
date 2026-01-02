@@ -9,10 +9,13 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.scala-lang.modules" %% "scala-parser-combinators" % "2.1.1",
       "net.sf.py4j" % "py4j" % "0.10.9.7" exclude("org.slf4j", "*"),
-      "ch.qos.logback" % "logback-classic" % "1.1.3",
+      "ch.qos.logback" % "logback-classic" % "1.4.14",
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
       "de.unruh" %% "scala-isabelle" % "0.4.3"
     ),
+
+    // Configure ScalaTest to show output
+    Test / testOptions += Tests.Argument("-o"),
 
     resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
 

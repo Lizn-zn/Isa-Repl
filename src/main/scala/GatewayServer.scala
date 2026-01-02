@@ -8,8 +8,11 @@ import scala.jdk.CollectionConverters._
 import java.nio.file.{Files, Paths}
 import java.util
 import java.util.concurrent.TimeoutException
+import org.slf4j.{LoggerFactory, Logger}
+import ch.qos.logback.classic.{Level, LoggerContext}
 
 class IsaReplApplication {
+  private val logger: Logger = LoggerFactory.getLogger(getClass.getName)
   val isabelleHome: String = sys.env.getOrElse(
     "ISABELLE_HOME",
     throw new Exception("ISABELLE_HOME not set")
@@ -25,17 +28,17 @@ class IsaReplApplication {
   private var repl: IsaREPL = _
 
   def _initializeRepl(pathToThy: String): String = {
-    val result = 
+    val result =
       try {
         repl = new IsaREPL(
           isabelle_home = isabelleHome,
-            path_to_thy = pathToThy,
-            working_directory = workingDirectory
-          )
-          "True" + "<\\SEP>" + "initialize successfully"
+          path_to_thy = pathToThy,
+          working_directory = workingDirectory
+        )
+        "True" + "<\\SEP>" + "initialize successfully"
       } catch {
         case e: Exception =>
-          println(s"Error during initialization: ${e.getMessage}")
+          logger.error(s"Error during initialization: ${e.getMessage}", e)
           "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
       }
     result
@@ -47,7 +50,7 @@ class IsaReplApplication {
       session: String,
       sessionRoots: util.ArrayList[String]
   ): String = {
-    val result = 
+    val result =
       try {
         repl = new IsaREPL(
           isabelle_home = isabelleHome,
@@ -59,7 +62,7 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + "initialize successfully"
       } catch {
         case e: Exception =>
-          println(s"Error during initialization: ${e.getMessage}")
+          logger.error(s"Error during initialization: ${e.getMessage}", e)
           "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
       }
     result
@@ -80,7 +83,7 @@ class IsaReplApplication {
       TempFileManager.cleanupAll()
     } catch {
       case e: Exception =>
-        println(s"Error during cleanup: ${e.getMessage}")
+        logger.error(s"Error during cleanup: ${e.getMessage}", e)
     }
   }
 
@@ -407,6 +410,8 @@ class IsaReplApplication {
 }
 
 object IsaReplGatewayServer {
+  private val logger: Logger = LoggerFactory.getLogger(getClass.getName)
+
   def main(args: Array[String]): Unit = {
     // Parse port from command line arguments (default: 25333)
     val port = if (args.length > 0) args(0).toInt else 25333
@@ -418,24 +423,22 @@ object IsaReplGatewayServer {
     // Register shutdown hook for graceful termination
     Runtime.getRuntime.addShutdownHook(new Thread {
       override def run(): Unit = {
-        println("\nReceived shutdown signal - terminating gracefully...")
+        logger.info("\nReceived shutdown signal - terminating gracefully...")
         try {
           app._exit()
           gateway.shutdown()
-          println("Server shutdown complete")
+          logger.info("Server shutdown complete")
         } catch {
           case e: Exception =>
-            println(s"Error during shutdown: ${e.getMessage}")
-            e.printStackTrace()
+            logger.error(s"Error during shutdown: ${e.getMessage}", e)
         }
         try {
           app._exit()
           gateway.shutdown()
-          println("Server shutdown complete")
+          logger.info("Server shutdown complete")
         } catch {
           case e: Exception =>
-            println(s"Error during shutdown: ${e.getMessage}")
-            e.printStackTrace()
+            logger.error(s"Error during shutdown: ${e.getMessage}", e)
         }
       }
     })
@@ -443,8 +446,8 @@ object IsaReplGatewayServer {
     try {
       // Start the gateway server
       gateway.start()
-      println(s"Server started on port $port (Press Ctrl+C to stop)")
-      println(s"Python connection port: ${gateway.getListeningPort}")
+      logger.info(s"Server started on port $port (Press Ctrl+C to stop)")
+      logger.info(s"Python connection port: ${gateway.getListeningPort}")
 
       // Keep the server running until interrupted
       while (!Thread.currentThread.isInterrupted) {
@@ -452,15 +455,14 @@ object IsaReplGatewayServer {
       }
     } catch {
       case e: Exception =>
-        println(s"Server error: ${e.getMessage}")
-        e.printStackTrace()
+        logger.error(s"Server error: ${e.getMessage}", e)
         app._exit()
         gateway.shutdown()
         app._exit()
         gateway.shutdown()
         System.exit(1)
     } finally {
-      println("Server process ending")
+      logger.info("Server process ending")
     }
   }
 }

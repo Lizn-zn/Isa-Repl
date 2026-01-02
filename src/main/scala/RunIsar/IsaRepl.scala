@@ -50,6 +50,9 @@ import RunIsar.RunIsarMLException
 // Implicits
 import de.unruh.isabelle.mlvalue.Implicits._
 import de.unruh.isabelle.pure.Implicits._
+import org.slf4j.{LoggerFactory, Logger}
+import ch.qos.logback
+import logback.classic.{Level, LoggerContext}
 
 object Transition extends AdHocConverter("Toplevel.transition")
 object ProofState extends AdHocConverter("Proof.state")
@@ -83,7 +86,23 @@ class IsaREPL(
     var debug: Boolean = false
 ) {
   import IsaREPL._
-  if (debug) println("Checkpoint 1: Isabelle setup")
+
+  // Configure logback based on debug parameter BEFORE creating logger
+  if (debug) {
+    LoggerFactory.getILoggerFactory match {
+      case loggerContext: LoggerContext =>
+        // Get backend logger and set to DEBUG level
+        val backendLogger: logback.classic.Logger =
+          loggerContext.getLogger(getClass.getName)
+        backendLogger.setLevel(Level.DEBUG)
+      case _ =>
+      // Not using logback, skip configuration
+    }
+  }
+
+  private val logger: Logger = LoggerFactory.getLogger(getClass.getName)
+
+  logger.debug("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
     path_to_thy.split("/").last.replace(".thy", "")
@@ -96,7 +115,7 @@ class IsaREPL(
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
   implicit val ec: ExecutionContext = ExecutionContext.global
-  if (debug) println("Checkpoint 2: Compile ML functions")
+  logger.debug("Checkpoint 2: Compile ML functions")
   // Load Auto_Isabelle theory from the correct path
   val tempDir = createTempDir("isar_temp")
   copyResources("RunIsar/isabelle/AutoIsar", tempDir)
@@ -266,9 +285,10 @@ class IsaREPL(
       return dependent_thms
     } catch {
       case e: IsabelleMLException =>
-        println("Name not found. Trying locales.")
+        logger.info("Name not found. Trying locales.")
         throw e
-      case o: Throwable => println(o); throw o
+      case o: Throwable =>
+        logger.error("Error getting dependent theorems", o); throw o
     }
     val relevant_locales = locales_defined_in_file(toplevel_state)
     // println(relevant_locales)
@@ -277,17 +297,17 @@ class IsaREPL(
 
     Breaks.breakable {
       for (relevant_locale <- relevant_locales) {
-        println("Trying locale: " + relevant_locale)
+        logger.info("Trying locale: " + relevant_locale)
         val full_name = relevant_locale.trim + '.' + theorem_name
         // println(s"Trying out full name: ${full_name}")
         try {
           val dependent_thms =
             get_dependent_thms(toplevel_state, full_name).force.retrieveNow
           dep_thms = dependent_thms
-          println("This locale works: " + relevant_locale)
+          logger.info("This locale works: " + relevant_locale)
           Breaks.break()
         } catch {
-          case e: Throwable => println(e)
+          case e: Throwable => logger.debug(e.toString)
         }
       }
     }
@@ -310,10 +330,10 @@ class IsaREPL(
       return dependent_thms
     } catch {
       case e: IsabelleMLException =>
-        println("Name not found. Trying locales.")
+        logger.info("Name not found. Trying locales.")
         throw new RunIsarMLException(e)
       case o: Throwable =>
-        println(o);
+        logger.error("Error getting dependent theorems with theory names", o);
         throw o
     }
   }
@@ -573,10 +593,10 @@ class IsaREPL(
   // filecontent is the content of thy file to be proved
   private var fileContent: String = Files.readString(Path.of(path_to_thy))
   var fileContentCopy: String = fileContent
-  if (debug) println("File content: " + fileContent)
+  logger.debug("File content: " + fileContent)
 
   var top_level_state_map: Map[String, MLValue[ToplevelState]] = Map()
-  if (debug) println("Checkpoint 9: func begintheory")
+  logger.debug("Checkpoint 9: func begintheory")
   // Load the theory manager
   val theoryManager: TheoryManager = new TheoryManager(
     isabelle_home = isabelle_home,
@@ -585,13 +605,14 @@ class IsaREPL(
     session = session,
     sessionRoots = session_roots,
     isabelle = isabelle,
+    logger = logger,
     debug = debug
   )
 
   var thy1: Theory = theoryManager.beginTheory()
-  if (debug) println("Checkpoint 9_6: Loading theory")
+  logger.debug("Checkpoint 9_6: Loading theory")
   thy1.await
-  if (debug) println("Checkpoint 10: Loading theory finished")
+  logger.debug("Checkpoint 10: Loading theory finished")
 
   // setting up SMT_translate
   val Skip_Proof: String = thy1.importMLStructureNow("Skip_Proof")
@@ -657,7 +678,7 @@ class IsaREPL(
   val Sledgehammer_Prover: String =
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
 
-  if (debug) println("Checkpoint 11")
+  logger.debug("Checkpoint 11")
 
   /** normal_with_Sledgehammer calls sledgehammer to prove the top goal with
     * premise modifications.
@@ -739,7 +760,7 @@ class IsaREPL(
          |""".stripMargin
     )
 
-    val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
+  val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
     compileFunction[ToplevelState, Theory, Unit](
       s"""fn (state, thy) =>
          |    let
@@ -780,7 +801,7 @@ class IsaREPL(
     )
 
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
-  if (debug) println("Checkpoint 12")
+  logger.debug("Checkpoint 12")
   def reset_map(): Unit = {
     top_level_state_map = Map()
   }
@@ -907,28 +928,27 @@ class IsaREPL(
       top_level_state: ToplevelState,
       timeout_in_millis: Int = 2000
   ): ToplevelState = {
-    if (debug) println("Begin step")
+    logger.debug("Begin step")
     // Normal isabelle business
     var tls_to_return: ToplevelState = clone_tls_scala(top_level_state)
     var stateString: String = ""
     val continue = new Breaks
-    if (debug) println("Starting to step")
+    logger.debug("Starting to step")
     val f_st = Future.apply {
       blocking {
         Breaks.breakable {
-          if (debug) println("start parsing " + isar_string)
+          logger.debug("start parsing " + isar_string)
           for (
             (transition, text) <- parse_text(
               thy1,
               isar_string
             ).force.retrieveNow
           ) {
-            if (debug) println("Transition: " + text)
+            logger.debug("Transition: " + text)
             continue.breakable {
               if (text.trim.isEmpty) continue.break()
               // println("Small step : " + text)
-              if (debug)
-                println("singleTransition with timeout " + timeout_in_millis)
+              logger.debug("singleTransition with timeout " + timeout_in_millis)
               tls_to_return = if (timeout_in_millis > 100000) {
                 singleTransitionWithoutTimeout(transition, tls_to_return)
               } else {
@@ -948,10 +968,9 @@ class IsaREPL(
 
     // Await for infinite amount of time
     Await.result(f_st, Duration.Inf)
-    if (debug)
-      println(
-        "Finish step, the current state is " + getStateString(tls_to_return)
-      )
+    logger.debug(
+      "Finish step, the current state is " + getStateString(tls_to_return)
+    )
     tls_to_return
   }
 
@@ -961,7 +980,7 @@ class IsaREPL(
       deleted_names: List[String],
       timeout_in_millis: Int = 60000 // 60 seconds
   ): (Boolean, List[String]) = {
-    if (debug) println("Checkpoint Hammer1: Begin normal_with_hammer")
+    logger.debug("Checkpoint Hammer1: Begin normal_with_hammer")
     val f_res: Future[(Boolean, List[String])] = Future.apply {
       val first_result = normal_with_Sledgehammer(
         top_level_state,
@@ -971,7 +990,7 @@ class IsaREPL(
       ).force.retrieveNow
       (first_result._1, first_result._2._2)
     }
-    if (debug) println("Checkpoint Hammer2: Finish & Await result")
+    logger.debug("Checkpoint Hammer2: Finish & Await result")
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
@@ -983,7 +1002,7 @@ class IsaREPL(
       val first_result = normal_with_try0(top_level_state).force.retrieveNow
       (first_result._1, first_result._3)
     }
-    if (debug) println("Checkpoint Try0: Finish & Await result")
+    logger.debug("Checkpoint Try0: Finish & Await result")
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
@@ -992,19 +1011,20 @@ class IsaREPL(
       timeout_in_millis: Int = 65000 // 65 seconds
   ): String = {
     val f_res: Future[String] = Future.apply {
-      val first_result = normal_with_NitPick(top_level_state, thy1).force.retrieveNow
+      val first_result =
+        normal_with_NitPick(top_level_state, thy1).force.retrieveNow
       first_result
     }
-    if (debug) println("Checkpoint Nitpick: Finish & Await result")
+    logger.debug("Checkpoint Nitpick: Finish & Await result")
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
-  if (debug) println("Checkpoint 13: Parse text")
+  logger.debug("Checkpoint 13: Parse text")
   // return the list of (transition and current step text)
   val transitions_and_texts = parse_text(thy1, fileContent).force.retrieveNow
   var frontier_proceeding_index = 0
 
-  if (debug) println("Checkpoint 14")
+  logger.debug("Checkpoint 14")
 
   /** Executes Isabelle proof steps until reaching a specific target step. This
     * function accumulates proof states by executing transitions one by one
@@ -1113,7 +1133,7 @@ class IsaREPL(
     ) {
       // Avoid too complex context if \n >> 5
       if (text.trim.nonEmpty) {
-        if (debug) println("Compilation Context: " + text)
+        logger.debug("Compilation Context: " + text)
         stateString = singleTransition(transition)
       }
     }
@@ -1132,7 +1152,7 @@ class IsaREPL(
     ) {
       // Avoid too complex context if \n >> 5
       if (text.trim.nonEmpty) {
-        if (debug) println("Compilation Context: " + text)
+        logger.debug("Compilation Context: " + text)
         stateString = singleTransition(transition)
       }
     }
@@ -1171,29 +1191,30 @@ class IsaREPL(
   }
 
   def check_by_nitpick(timeout_in_millis: Int = 65000): (Boolean, String) = {
-  // Specifies the expected outcome, which must be one of the following:
-  // • genuine: Nitpick found a genuine counterexample.
-  // • quasi_genuine: Nitpick found a "quasi genuine" counterexample
-  //      (i.e., a counterexample that is genuine unless it contradicts a missing axiom or a dangerous option was used inappropriately).
-  // • potential: Nitpick found a potentially spurious counterexample.
-  // • none: Nitpick found no counterexample.
-  // • unknown: Nitpick encountered some problem (e.g., Kodkod ran out of memory).
+    // Specifies the expected outcome, which must be one of the following:
+    // • genuine: Nitpick found a genuine counterexample.
+    // • quasi_genuine: Nitpick found a "quasi genuine" counterexample
+    //      (i.e., a counterexample that is genuine unless it contradicts a missing axiom or a dangerous option was used inappropriately).
+    // • potential: Nitpick found a potentially spurious counterexample.
+    // • none: Nitpick found no counterexample.
+    // • unknown: Nitpick encountered some problem (e.g., Kodkod ran out of memory).
     val result = normal_with_nitpick(toplevel, timeout_in_millis)
     val hasCounterexample = result match {
       case "genuine" | "quasi_genuine" | "potential" => true
-      case "none" | "unknown" => false
+      case "none" | "unknown"                        => false
       case _ => false // Default case for unexpected results
     }
-    
+
     val message = result match {
       case "genuine" => "Nitpick found a genuine counterexample"
-      case "quasi_genuine" => "Nitpick found a quasi-genuine counterexample (may contradict missing axioms)"
+      case "quasi_genuine" =>
+        "Nitpick found a quasi-genuine counterexample (may contradict missing axioms)"
       case "potential" => "Nitpick found a potentially spurious counterexample"
-      case "none" => "Nitpick found no counterexample - goal appears valid"
-      case "unknown" => "Nitpick encountered a problem (e.g., out of memory)"
-      case _ => s"Unexpected nitpick result: $result"
+      case "none"      => "Nitpick found no counterexample - goal appears valid"
+      case "unknown"   => "Nitpick encountered a problem (e.g., out of memory)"
+      case _           => s"Unexpected nitpick result: $result"
     }
-    
+
     (hasCounterexample, message)
   }
 
@@ -1282,7 +1303,7 @@ class IsaREPL(
   def mash_state_relearn(): Unit = {
     val output = mash_relearn(
       toplevel,
-      thy1,
+      thy1
     ).force.retrieveNow
     output
   }
@@ -1323,7 +1344,7 @@ class IsaREPL(
     "Destroyed"
   }
 
-  if (debug) println("Checkpoint 15")
+  logger.debug("Checkpoint 15")
 
   // Manage top level states with the internal map
   def copy_tls: MLValue[ToplevelState] = toplevel.mlValue

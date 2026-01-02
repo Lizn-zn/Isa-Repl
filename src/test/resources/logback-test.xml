@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration debug="false">
-    <!-- Console appender -->
+    <!-- Console appender with immediate flush for test output -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>[%d{MM-dd HH:mm:ss} %-5level %logger{36}] %msg%n</pattern>
+            <pattern>[%d{MM-dd HH:mm:ss.SSS} %-5level %logger{36}] %msg%n</pattern>
         </encoder>
         <immediateFlush>true</immediateFlush>
     </appender>
@@ -34,4 +34,4 @@
 
     <!-- Set specific package logging levels -->
     <logger name="de.unruh" level="ERROR" />
-</configuration> 
+</configuration>

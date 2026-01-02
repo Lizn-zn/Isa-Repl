@@ -4,7 +4,8 @@ import mill.javalib.*
 
 object Deps {
 
-  val logbackClassic = mvn"ch.qos.logback:logback-classic:1.1.3"
+  val logbackClassic = mvn"ch.qos.logback:logback-classic:1.4.14"
+  val logbackCore = mvn"ch.qos.logback:logback-core:1.4.14"
   val py4j = mvn"net.sf.py4j:py4j:0.10.9.7;exclude=org.slf4j:*"
   val scalaIsabelle = mvn"de.unruh::scala-isabelle:master-SNAPSHOT"
   val scalaParserCombinators =
