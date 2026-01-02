@@ -62,11 +62,12 @@ class IsaReplApplication {
     result
   }
 
-  def _resetRepl(pathToThy: String): Unit = {
+  def _resetRepl(pathToThy: String): IsaREPL = {
     val msg = repl.reset_isabelle(pathToThy)
     if (msg != "Reset") {
       _initializeRepl(pathToThy)
     }
+    repl
   }
 
   def _exit(): Unit = {
