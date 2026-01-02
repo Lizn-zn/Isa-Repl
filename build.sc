@@ -12,6 +12,7 @@ object `package` extends PublishModule with SbtModule {
     Deps.scalaParserCombinators,
     Deps.py4j,
     Deps.logbackClassic,
+    Deps.logbackCore,
     Deps.scalaIsabelle
   )
 
@@ -38,6 +39,9 @@ object `package` extends PublishModule with SbtModule {
   object test extends SbtTests with TestModule.ScalaTest {
 
     def mvnDeps = super.mvnDeps() ++ Seq(Deps.scalatest)
+
+    // Configure ScalaTest to show output
+    def testArgs = Seq("-o")
 
     def testParallelism = true
 

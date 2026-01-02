@@ -24,9 +24,25 @@ import TheoryManager.{Heap, Source, Text}
 import TheoryManager.Ops
 
 // Implicits
-import de.unruh.isabelle.mlvalue.Implicits._
-import de.unruh.isabelle.pure.Implicits._
+import de.unruh.isabelle.mlvalue.Implicits.{
+  booleanConverter,
+  intConverter,
+  stringConverter,
+  listConverter,
+  optionConverter,
+  tuple2Converter,
+  tuple3Converter
+}
+import de.unruh.isabelle.pure.Implicits.{
+  theoryConverter,
+  theoryHeaderConverter,
+  toplevelStateConverter,
+  transitionConverter,
+  positionConverter,
+  pathConverter
+}
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.slf4j.{LoggerFactory, Logger}
 
 /*
 For TheoryManager
@@ -44,8 +60,10 @@ class TheoryManager(
     val session: String,
     val sessionRoots: List[String],
     implicit val isabelle: Isabelle,
+    val logger: Logger = LoggerFactory.getLogger(classOf[TheoryManager]),
     val debug: Boolean = false
 ) {
+
   if (working_directory.contains(isabelle_home)) {
     throw new Exception(
       "working_directory should not be set in the same directory as isabelleHome"
@@ -59,7 +77,7 @@ class TheoryManager(
   // filecontent is the content of thy file to be proved
   private var fileContent: String = Files.readString(Path.of(path_to_thy))
   var fileContentCopy: String = fileContent
-  if (debug) println("File content: " + fileContent)
+  logger.debug("File content: " + fileContent)
 
   val command_exception
       : MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
@@ -71,7 +89,7 @@ class TheoryManager(
       compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE")
     else
       compileFunction0[ToplevelState]("Toplevel.init_toplevel")
-  if (debug) println("Checkpoint 4: Theory management")
+  logger.debug("Checkpoint 4: Theory management")
   val header_read: MLFunction2[String, Position, TheoryHeader] =
     compileFunction[String, Position, TheoryHeader](
       "fn (text,pos) => Thy_Header.read pos text"
@@ -89,7 +107,7 @@ class TheoryManager(
   val toplevel_end_theory: MLFunction[ToplevelState, Theory] =
     compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
 
-  if (debug) println("Checkpoint 6: Starter String")
+  logger.debug("Checkpoint 6: Starter String")
   private def getStarterString: String = {
     val decoyThy: Theory = Theory("Main")
     for (
@@ -108,18 +126,21 @@ class TheoryManager(
   val starter_string: String = getStarterString.trim.replaceAll("\n", " ").trim
   val theoryStarter: TheoryManager.Text =
     TheoryManager.Text(starter_string, Path.of(working_directory).resolve(""))
-  
-  /**
-   * Normalizes an import pattern string by removing surrounding quotes (if present),
-   * extracting the theory name if it is a path.
-   *
-   * @param import_string The import string, possibly quoted and containing a file path.
-   * @return The normalized import pattern, which is either the theory name or a 'SessionA.TheoryB' format.
-   */
+
+  /** Normalizes an import pattern string by removing surrounding quotes (if
+    * present), extracting the theory name if it is a path.
+    *
+    * @param import_string
+    *   The import string, possibly quoted and containing a file path.
+    * @return
+    *   The normalized import pattern, which is either the theory name or a
+    *   'SessionA.TheoryB' format.
+    */
   def normalizeImportPattern(import_string: String): String = {
-    val p = if (import_string.startsWith("\"") && import_string.endsWith("\"")) {
-      import_string.substring(1, import_string.length - 1)
-    } else import_string
+    val p =
+      if (import_string.startsWith("\"") && import_string.endsWith("\"")) {
+        import_string.substring(1, import_string.length - 1)
+      } else import_string
     p.split("/").last.split(".thy").head
   }
 
@@ -140,24 +161,26 @@ class TheoryManager(
   def beginTheory(
       source: Source = theoryStarter
   )(implicit isabelle: Isabelle): Theory = {
-    if (debug) println("Checkpoint 9_1")
+    logger.debug("Checkpoint 9_1")
     val header = getHeader(source)
-    if (debug) println("Checkpoint 9_2")
+    logger.debug("Checkpoint 9_2")
     val masterDir = source.path
-    if (debug) println("Checkpoint 9_3")
+    logger.debug("Checkpoint 9_3")
     val registers: ListBuffer[String] = new ListBuffer[String]()
-    if (debug) println("Checkpoint 9_4")
+    logger.debug("Checkpoint 9_4")
     for (theory_name <- header.imports.map(normalizeImportPattern)) {
       // If n is not of the form "Main", "Pure" or "A.B", prepend the session name
       if (
-        theory_name == "Main" || theory_name == "Pure" || theory_name.contains(".")
+        theory_name == "Main" || theory_name == "Pure" || theory_name.contains(
+          "."
+        )
       ) {
         registers += theory_name
       } else {
         registers += s"$session.$theory_name"
       }
     }
-    if (debug) println("Checkpoint 9_5")
+    logger.debug("Checkpoint 9_5")
     try {
       Ops
         .begin_theory(masterDir, header, registers.toList.map(Theory.apply))
