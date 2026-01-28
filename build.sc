@@ -13,7 +13,8 @@ object `package` extends PublishModule with SbtModule {
     Deps.py4j,
     Deps.logbackClassic,
     Deps.logbackCore,
-    Deps.scalaIsabelle
+    Deps.scalaIsabelle,
+    Deps.classgraph
   )
 
   def artifactName = "isa-repl"
