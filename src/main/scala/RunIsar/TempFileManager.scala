@@ -81,22 +81,26 @@ class TempFileManager {
 
   /** Copies a resource directory to target location.
     * @param sourcePath
-    *   Resource path relative to classloader (e.g., "some/dir")
+    *   Resource path relative to "src/main/resources" i.e. "RunIsar/isabelle/AutoIsar"
     * @param targetDir
     *   Destination directory
     * @throws IOException
     *   If resource not found or copy fails
     */
-  def copyResources(sourcePath: String, targetDir: File): Unit = {
+  def copyResources(sourceDir: String, targetDir: File): Unit = {
     require(
-      sourcePath != null && targetDir != null,
+      sourceDir != null && targetDir != null,
       "Parameters cannot be null"
     )
+    var srcDir = sourceDir
+    // Append / to the input path if it doesn't end with one
+    if (!srcDir.endsWith("/")) {
+      srcDir += "/"
+    }
 
-    val assets = new ClassGraph().acceptPackages("RunIsar").scan().getResourcesMatchingWildcard("RunIsar/assets/*")
+    val assets = new ClassGraph().acceptPackages("RunIsar").scan().getResourcesMatchingWildcard(srcDir + "*")
     assets.forEach { resource =>
-      
-      val targetRelPath = resource.getPathRelativeToClasspathElement().replace("RunIsar/assets/", "")
+      val targetRelPath = resource.getPathRelativeToClasspathElement().replace(srcDir, "")
       // Files.createDirectories(targetFile.getParent)
       Files.copy(
         resource.open(), Paths.get(targetDir.getPath(), targetRelPath), StandardCopyOption.REPLACE_EXISTING
