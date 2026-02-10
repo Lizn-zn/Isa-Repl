@@ -10,8 +10,10 @@ lazy val root = (project in file("."))
       "org.scala-lang.modules" %% "scala-parser-combinators" % "2.1.1",
       "net.sf.py4j" % "py4j" % "0.10.9.7" exclude("org.slf4j", "*"),
       "ch.qos.logback" % "logback-classic" % "1.4.14",
+      // "ch.qos.logback" % "logback-core" % "1.4.14",
       "org.scalatest" %% "scalatest" % "3.2.19" % Test,
-      "de.unruh" %% "scala-isabelle" % "0.4.3"
+      "de.unruh" %% "scala-isabelle" % "0.4.3",
+      "io.github.classgraph" % "classgraph" % "4.8.184"
     ),
 
     // Configure ScalaTest to show output

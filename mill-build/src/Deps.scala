@@ -11,4 +11,5 @@ object Deps {
   val scalaParserCombinators =
     mvn"org.scala-lang.modules::scala-parser-combinators:2.1.1"
   val scalatest = mvn"org.scalatest::scalatest:3.2.19"
+  val classgraph = mvn"io.github.classgraph:classgraph:4.8.184"
 }

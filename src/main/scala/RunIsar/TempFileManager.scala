@@ -7,6 +7,7 @@ import java.net.URI
 import scala.util.Using
 import scala.collection.mutable.Set
 import org.slf4j.{LoggerFactory, Logger}
+import io.github.classgraph.ClassGraph
 
 /** Manages temporary file operations including copying resources from
   * JAR/filesystem. Handles both development and packaged JAR environments.
@@ -92,61 +93,16 @@ class TempFileManager {
       "Parameters cannot be null"
     )
 
-    val resourceUrl = Option(getClass.getClassLoader.getResource(sourcePath))
-      .getOrElse(throw new IOException(s"Resource not found: $sourcePath"))
-
-    val uri = resourceUrl.toURI
-
-    // Ensure target directory exists
-    Files.createDirectories(targetDir.toPath)
-
-    uri.getScheme match {
-      case "jar"  => copyFromJar(uri, sourcePath, targetDir)
-      case "file" => copyFromFileSystem(uri, targetDir)
-      case other  => throw new IOException(s"Unsupported URI scheme: $other")
+    val assets = new ClassGraph().acceptPackages("RunIsar").scan().getResourcesMatchingWildcard("RunIsar/assets/*")
+    assets.forEach { resource =>
+      
+      val targetRelPath = resource.getPathRelativeToClasspathElement().replace("RunIsar/assets/", "")
+      // Files.createDirectories(targetFile.getParent)
+      Files.copy(
+        resource.open(), Paths.get(targetDir.getPath(), targetRelPath), StandardCopyOption.REPLACE_EXISTING
+      )
     }
-  }
 
-  /** Copies resources from within a JAR file */
-  private def copyFromJar(
-      jarUri: URI,
-      sourcePath: String,
-      targetDir: File
-  ): Unit = {
-    var jarFs: FileSystem = null
-    try {
-      jarFs =
-        FileSystems.newFileSystem(jarUri, new java.util.HashMap[String, Any])
-      val jarPath = jarUri.toString.split("!")(1).stripPrefix("/")
-      val rootPath = jarFs.getPath(jarPath)
-
-      Files.walk(rootPath).forEach { sourceFile =>
-        if (!Files.isDirectory(sourceFile)) {
-          val relativePath = rootPath.relativize(sourceFile).toString
-          val targetFile = targetDir.toPath.resolve(relativePath)
-          Files.createDirectories(targetFile.getParent)
-          Files
-            .copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
-          // println(s"Copied: $sourceFile -> $targetFile")
-        }
-      }
-    } finally {
-      if (jarFs != null) jarFs.close()
-    }
-  }
-
-  /** Copies resources from regular filesystem */
-  private def copyFromFileSystem(uri: URI, targetDir: File): Unit = {
-    val sourceDir = Paths.get(uri)
-    Files.walk(sourceDir).forEach { sourceFile =>
-      if (!Files.isDirectory(sourceFile)) {
-        val relativePath = sourceDir.relativize(sourceFile).toString
-        val targetFile = targetDir.toPath.resolve(relativePath)
-        Files.createDirectories(targetFile.getParent)
-        Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
-        // println(s"Copied: $sourceFile -> $targetFile")
-      }
-    }
   }
 
   /** Creates a temporary directory that auto-deletes on JVM exit
