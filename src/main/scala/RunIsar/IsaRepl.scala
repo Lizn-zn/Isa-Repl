@@ -172,7 +172,7 @@ class IsaREPL(
       compileFunction[ToplevelState, Theory]("Toplevel.theory_of")
   lazy val name_of_transition: MLFunction[Transition.T, String] =
     compileFunction[Transition.T, String]("Toplevel.name_of")
-  lazy val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
+  val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
     compileFunction[Theory, String, List[(Transition.T, String)]]("""fn (thy, text) => let
         |  val transitions = Outer_Syntax.parse_text thy (K thy) Position.start text
         |  fun addtext symbols [tr] =
