@@ -113,7 +113,7 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + repl.step(command)
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed applying command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -124,9 +124,9 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + repl.step_with_30s(command)
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
         case e: TimeoutException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -137,7 +137,7 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + repl.step_without_timeout(command)
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
