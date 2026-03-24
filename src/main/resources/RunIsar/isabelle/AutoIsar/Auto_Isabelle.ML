@@ -193,7 +193,18 @@ fun try_quickcheck_async timeout st _ =
          Some counterexample  → found
          None                 → no counterexample
        *)
-      val cex_opt = Quickcheck.quickcheck [] 1 state'
+      val cex_opt = (Quickcheck.quickcheck [] 1 state')
+
+      fun simple_pretty_counterex ctxt auto result =
+  case result of
+      NONE =>
+        Pretty.str "Quickcheck found no counterexample."
+    | SOME ((genuine, _), _) =>
+        Pretty.str ("Quickcheck found a " ^
+          (if genuine then "counterexample."
+           else "potentially spurious counterexample due to underspecified functions."))
+
+
 
       (* Format the result using Quickcheck’s pretty printer.
          Quickcheck.pretty_counterex expects:
@@ -203,7 +214,7 @@ fun try_quickcheck_async timeout st _ =
       val ctxt = Proof.context_of state'
       val msg =
         Pretty.string_of
-          (Quickcheck.pretty_counterex ctxt true
+          (simple_pretty_counterex ctxt true
              (Option.map (fn cex => (cex, [])) cex_opt))
     in
       (true, msg)
@@ -264,7 +275,7 @@ fun get_facts_from_state state thy filter adds dels =
     val params = Sledgehammer_Commands.default_params thy [("fact_filter", filter)];
     val {induction_rules, max_facts, ...} = params;
     val all_facts = Sledgehammer_Fact.nearly_all_facts_of_context ctxt false override chained_thms hyp_ts concl_t;
-    val max_num_facts = the_default 2048 max_facts;
+    val max_num_facts = the_default 128 max_facts;
     val fact_lst = Sledgehammer_MaSh.relevant_facts ctxt params "" max_num_facts override hyp_ts concl_t all_facts;
     val induction_rules = the_default Sledgehammer_Prover.Exclude induction_rules;
     val factss = map (apsnd (Sledgehammer_Prover.maybe_filter_out_induction_rules induction_rules)) fact_lst;

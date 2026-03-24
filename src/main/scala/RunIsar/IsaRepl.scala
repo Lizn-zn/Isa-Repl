@@ -762,6 +762,22 @@ class IsaREPL(
          |""".stripMargin
     )
 
+  val thy_for_quickcheck = thy1
+  val QuickCheck: String =
+    thy_for_quickcheck.importMLStructureNow("Quickcheck")
+  // val QuickCheck_Commands: String =
+  //   thy_for_quickcheck.importMLStructureNow("Quickcheck_Commands")
+  val normal_with_QuickCheck: MLFunction2[ToplevelState, Theory, String] =
+    compileFunction[ToplevelState, Theory, String](
+      s"""fn (state, thy) =>
+         |    let
+         |      val (ok, str_result) = $Auto_Isabelle.try_quickcheck (Time.fromSeconds 60) state thy;
+         |    in
+         |      str_result
+         |    end
+         |""".stripMargin
+    )
+
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
   if (debug) println("Checkpoint 12")
   def reset_map(): Unit = {
@@ -888,7 +904,7 @@ class IsaREPL(
   def step(
       isar_string: String,
       top_level_state: ToplevelState,
-      timeout_in_millis: Int = 2000
+      timeout_in_millis: Int = 30001
   ): ToplevelState = {
     if (debug) println("Begin step")
     // Normal isabelle business
@@ -979,6 +995,18 @@ class IsaREPL(
       first_result
     }
     if (debug) println("Checkpoint Nitpick: Finish & Await result")
+    Await.result(f_res, Duration(timeout_in_millis, "millis"))
+  }
+
+  def normal_with_quickcheck(
+      top_level_state: ToplevelState,
+      timeout_in_millis: Int = 65000 // 65 seconds
+  ): String = {
+    val f_res: Future[String] = Future.apply {
+      val first_result = normal_with_QuickCheck(top_level_state, thy1).force.retrieveNow
+      first_result
+    }
+    if (debug) println("Checkpoint QuickCheck: Finish & Await result")
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
@@ -1177,6 +1205,34 @@ class IsaREPL(
       case _ => s"Unexpected nitpick result: $result"
     }
     
+    (hasCounterexample, message)
+  }
+
+
+  def check_by_quickcheck(timeout_in_millis: Int = 65000): (Boolean, String) = {
+  // Specifies the expected outcome, which must be one of the following:
+  // • genuine: QuickCheck found a genuine counterexample.
+  // • none: QuickCheck found no counterexample.
+  // • unknown: QuickCheck encountered some problem (e.g., Kodkod ran out of memory).
+  val result = normal_with_quickcheck(toplevel, timeout_in_millis)
+  val norm = Option(result).getOrElse("").trim.toLowerCase
+  val hasCounterexample: Boolean =
+    if (norm.contains("no counterexample")) false
+    else if (norm.contains("found a")) true
+    else false
+
+
+  val message: String =
+    norm match {
+      case s if s.contains("no counterexample") =>
+        "Quickcheck found no counterexample — goal appears valid."
+      case s if s.contains("potentially spurious") || s.contains("underspecified") =>
+        "Quickcheck found a potentially spurious counterexample (may be caused by underspecified functions)."
+      case s if s.contains("found a counterexample") =>
+        "Quickcheck found a genuine counterexample."
+      case _ =>
+        s"Unexpected Quickcheck result: $result"
+    }
     (hasCounterexample, message)
   }
 
