@@ -224,6 +224,34 @@ class IsaReplApplication {
     result
   }
 
+  def _find_theorems(queryPatterns: util.ArrayList[String]): String = {
+    val result =
+      try {
+        val output = repl.find_theorems(queryPatterns.asScala.toList)
+        "True" + "<\\SEP>" + output
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + "failed for find_theorems. Get msg: " + e.getMessage
+      }
+    result
+  }
+
+  def _find_theorems(
+      queryPatterns: util.ArrayList[String],
+      limit: Int,
+      removeDuplicates: Boolean
+  ): String = {
+    val result =
+      try {
+        val output = repl.find_theorems(queryPatterns.asScala.toList, limit, removeDuplicates)
+        "True" + "<\\SEP>" + output
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + "failed for find_theorems. Get msg: " + e.getMessage
+      }
+    result
+  }
+
   def _parse_to_steps(isar_string: String): String = {
     val result =
       try {

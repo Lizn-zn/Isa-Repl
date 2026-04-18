@@ -10,6 +10,7 @@ structure Auto_Isabelle : sig
   val try_close : Time.time -> Proof.state -> bool * string * string
   val try_nitpick: Time.time -> Toplevel.state -> theory -> bool * string
   val try_quickcheck: Time.time -> Toplevel.state -> theory -> bool * string
+  val find_theorems: Toplevel.state -> string list -> int option -> bool -> string
   val retrieve_facts : Proof.state -> theory -> string -> string list -> string list -> string 
   val retrieve_facts_with_theory_names : Proof.state -> theory -> string -> string list -> string list -> string
   val mash_relearn : Proof.state -> theory -> unit
@@ -248,6 +249,21 @@ fun try_quickcheck timeout st thy =
   in
     poll 0.1
   end
+
+(* Find theorems that match a list of term-pattern criteria.
+   query_patterns: each string corresponds to one positive pattern criterion,
+                   e.g. "obj_at _ _" or "set_thread_state"
+   opt_limit: NONE means Isabelle default limit; SOME n limits display to n
+   rem_dups: true removes duplicate theorem bodies from results
+ *)
+fun find_theorems st query_patterns opt_limit rem_dups =
+  let
+    val state = Find_Theorems.proof_state st;
+    val criteria = map (fn pat => (true, Find_Theorems.Pattern pat)) query_patterns;
+    val pretty = Find_Theorems.pretty_theorems state opt_limit rem_dups criteria;
+  in
+    clean_theorem_text (Pretty.string_of pretty)
+  end;
 
 (* ============================================================================
    Fact retrieval utilities
