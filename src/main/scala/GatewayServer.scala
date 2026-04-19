@@ -252,6 +252,34 @@ class IsaReplApplication {
     result
   }
 
+
+  def _explicitize_proof(method: String): String = {
+    val result =
+      try {
+        val (solved, command, traceLog) = repl.explicitize_proof(method)
+        "True" + "<\\SEP>" + solved.toString + "<\\SEP>" + command + "<\\SEP>" + traceLog
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for explicitize_proof. Get msg: ${e.getMessage}"
+        case e: TimeoutException =>
+          "False" + "<\\SEP>" + s"failed for explicitize_proof. Get msg: ${e.getMessage}"
+      }
+    result
+  }
+
+  def _explicitize_proof(method: String, timeoutInMillis: Int): String = {
+    val result =
+      try {
+        val (solved, command, traceLog) = repl.explicitize_proof(method, timeoutInMillis)
+        "True" + "<\\SEP>" + solved.toString + "<\\SEP>" + command + "<\\SEP>" + traceLog
+      } catch {
+        case e: IsabelleMLException =>
+          "False" + "<\\SEP>" + s"failed for explicitize_proof. Get msg: ${e.getMessage}"
+        case e: TimeoutException =>
+          "False" + "<\\SEP>" + s"failed for explicitize_proof. Get msg: ${e.getMessage}"
+      }
+    result
+  }
   def _parse_to_steps(isar_string: String): String = {
     val result =
       try {

@@ -790,6 +790,17 @@ class IsaREPL(
          |""".stripMargin
     )
 
+  val parse_explicitize_proof: MLFunction2[ToplevelState, String, (Boolean, String, String)] =
+    compileFunction[ToplevelState, String, (Boolean, String, String)](
+      s"""fn (state, method_name) =>
+         |    let
+         |      val (solved, command, trace_log) = $Auto_Isabelle.explicitize_proof state method_name;
+         |    in
+         |      (solved, command, trace_log)
+         |    end
+         |""".stripMargin
+    )
+
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
   if (debug) println("Checkpoint 12")
   def reset_map(): Unit = {
@@ -1256,6 +1267,24 @@ class IsaREPL(
     val output =
       parse_find_theorems(toplevel, query_patterns, limit, remove_duplicates).force.retrieveNow
     output
+  }
+
+  def explicitize_proof(
+      method: String = "simp",
+      timeout_in_millis: Int = 65000
+  ): (Boolean, String, String) = {
+    val normalised_method = method.trim.toLowerCase
+    if (!Set("simp", "auto").contains(normalised_method)) {
+      throw new Exception(
+        s"Unsupported method for explicitization: ${method}. Supported methods are `simp` and `auto`."
+      )
+    }
+
+    val f_res: Future[(Boolean, String, String)] = Future.apply {
+      parse_explicitize_proof(toplevel, normalised_method).force.retrieveNow
+    }
+
+    Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
   def translate_to_smt(): String = {

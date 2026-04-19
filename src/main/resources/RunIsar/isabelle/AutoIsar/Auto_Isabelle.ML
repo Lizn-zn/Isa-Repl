@@ -11,6 +11,7 @@ structure Auto_Isabelle : sig
   val try_nitpick: Time.time -> Toplevel.state -> theory -> bool * string
   val try_quickcheck: Time.time -> Toplevel.state -> theory -> bool * string
   val find_theorems: Toplevel.state -> string list -> int option -> bool -> string
+  val explicitize_proof: Toplevel.state -> string -> bool * string * string
   val retrieve_facts : Proof.state -> theory -> string -> string list -> string list -> string 
   val retrieve_facts_with_theory_names : Proof.state -> theory -> string -> string list -> string list -> string
   val mash_relearn : Proof.state -> theory -> unit
@@ -265,6 +266,172 @@ fun find_theorems st query_patterns opt_limit rem_dups =
     clean_theorem_text (Pretty.string_of pretty)
   end;
 
+
+(* Build an explicit replay command for simp/auto by tracing simplifier rewrites. *)
+fun with_tracing_capture f =
+  let
+    val trace_buffer = Unsynchronized.ref ([]: string list);
+    val tracing_backup = !Private_Output.tracing_fn;
+
+    fun collect outputs =
+      let
+        val text = clean_theorem_text (String.concat outputs);
+      in
+        if text = "" then ()
+        else trace_buffer := text :: !trace_buffer
+      end;
+
+    val _ = Private_Output.tracing_fn := collect;
+    val result = Exn.capture f ();
+    val _ = Private_Output.tracing_fn := tracing_backup;
+  in
+    (result, rev (!trace_buffer))
+  end;
+
+fun normalize_trace_lines lines =
+  lines
+  |> maps (fn text => String.fields (fn c => c = #"\n" orelse c = #"\r") text)
+  |> filter_out (fn line => line = "");
+
+val rewrite_prefix = "Applying instance of rewrite rule ";
+
+fun extract_rewrite_name line =
+  let
+    val (_, suffix) = Substring.position rewrite_prefix (Substring.full line);
+  in
+    if Substring.isEmpty suffix then NONE
+    else
+      let
+        val rest =
+          suffix
+          |> Substring.triml (size rewrite_prefix)
+          |> Substring.string;
+        val candidate =
+          if String.isPrefix "\"" rest then
+            (case String.fields (fn c => c = #"\"") rest of
+              _ :: x :: _ => x
+            | _ => "")
+          else
+            (case String.fields (fn c => c = #":") rest of
+              [] => ""
+            | x :: _ => x);
+        val name =
+          candidate
+          |> String.tokens (fn c => c = #" " orelse c = #"\t")
+          |> space_implode " ";
+      in
+        if name = "" then NONE else SOME name
+      end
+  end;
+
+fun dedup_preserve xs =
+  fold (fn x => fn acc => if member (op =) acc x then acc else acc @ [x]) xs [];
+
+fun local_fact_prefix ctxt local_facts =
+  if null local_facts then ""
+  else
+    "using " ^
+    space_implode " " (map (fn thm => antiquot (Thm.string_of_thm ctxt thm)) local_facts) ^
+    " ";
+
+fun format_command using_prefix solved method_body =
+  using_prefix ^ (if solved then "by " else "apply ") ^ "(" ^ method_body ^ ")";
+
+fun run_method_on_state state method_body local_facts =
+  let
+    val ctxt = Proof.context_of state;
+    val text =
+      method_body
+      |> parse_method ctxt
+      |> Method.method_cmd ctxt
+      |> Method.Basic
+      |> (fn m => Method.Combinator (Method.no_combinator_info, Method.Select_Goals 1, [m]));
+    val apply =
+      Proof.using [local_facts |> map (rpair [] o single)]
+      #> Proof.refine text
+      #> Seq.filter_results;
+    val (_, st') = simple_apply apply state;
+  in
+    (st', num_goals st' = 0)
+  end;
+
+fun explicitize_proof st method_name =
+  let
+    val method = if method_name = "" then "simp" else method_name;
+    val supported = member (op =) ["simp", "auto"] method;
+  in
+    if not supported then
+      (false, "", "Unsupported method for explicitization: " ^ method ^ ". Supported: simp, auto")
+    else
+      let
+        val proof_state = Toplevel.proof_of st;
+        val ctxt = Proof.context_of proof_state;
+        val local_facts = Facts.props (Proof_Context.facts_of ctxt) |> map #1 |> take 10;
+        val using_prefix = local_fact_prefix ctxt local_facts;
+
+        val traced_state =
+          proof_state
+          |> Proof.map_context
+              (Config.put Raw_Simplifier.simp_trace true
+               #> Config.put Raw_Simplifier.simp_trace_depth_limit 20
+               #> Config.put Raw_Simplifier.simp_debug false);
+
+        val (run_result, trace_chunks) =
+          with_tracing_capture (fn () => run_method_on_state traced_state method local_facts);
+
+        val trace_lines = normalize_trace_lines trace_chunks;
+        val rewrite_names =
+          trace_lines
+          |> map_filter extract_rewrite_name
+          |> dedup_preserve;
+
+        val replay_rule_names =
+          rewrite_names
+          |> filter (fn name => can (Proof_Context.get_fact ctxt) (Facts.named name));
+
+        val explicit_method_opt =
+          if null replay_rule_names then NONE
+          else
+            (case method of
+              "simp" => SOME ("simp only: " ^ space_implode " " replay_rule_names)
+            | "auto" => SOME ("auto simp only: " ^ space_implode " " replay_rule_names)
+            | _ => NONE);
+
+        fun solved_by method_body =
+          (case Exn.capture (fn () => #2 (run_method_on_state proof_state method_body local_facts)) () of
+            Exn.Res solved => solved
+          | Exn.Exn _ => false);
+
+        val (method_solved, run_message) =
+          (case run_result of
+            Exn.Res (_, solved) => (solved, "")
+          | Exn.Exn exn => (false, "Method execution failed: " ^ Runtime.exn_message exn));
+
+        val (chosen_method, chosen_solved) =
+          (case explicit_method_opt of
+            SOME explicit_method =>
+              if solved_by explicit_method then (explicit_method, true)
+              else (method, method_solved)
+          | NONE => (method, method_solved));
+
+        val command = format_command using_prefix chosen_solved chosen_method;
+
+        val trace_header =
+          if null rewrite_names then "No rewrite rules were extracted from simp trace."
+          else if null replay_rule_names then
+            "Extracted rewrite rules (not directly replayable by name in this context): " ^
+            space_implode " " rewrite_names
+          else
+            "Extracted rewrite rules: " ^ space_implode " " replay_rule_names;
+
+        val trace_log =
+          cat_lines ([trace_header] @
+            (if run_message = "" then [] else [run_message]) @
+            trace_lines);
+      in
+        (chosen_solved, command, trace_log)
+      end
+  end;
 (* ============================================================================
    Fact retrieval utilities
    ============================================================================ *)
