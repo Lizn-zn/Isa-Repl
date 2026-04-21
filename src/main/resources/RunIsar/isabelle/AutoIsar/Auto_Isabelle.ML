@@ -337,6 +337,32 @@ fun local_fact_prefix ctxt local_facts =
 fun format_command using_prefix solved method_body =
   using_prefix ^ (if solved then "by " else "apply ") ^ "(" ^ method_body ^ ")";
 
+(* Multi-step output format: first step carries the `using` prefix; middle
+   steps are `apply (…)`; the last step is `by (…)` iff the original method
+   closed the goal. The <\CMD_SEP> delimiter is parsed apart on the Python
+   side into a list of commands.
+
+   Commands are expected to be applied IN ORDER and the ML side has already
+   verified that the sequence reaches the same end-state as the original
+   method via `sequence_same_state_as`. *)
+val cmd_sep = "<\\CMD_SEP>";
+
+fun format_command_sequence using_prefix solved method_bodies =
+  let
+    val n = length method_bodies;
+    fun fmt i body =
+      let
+        val is_first = i = 0;
+        val is_last = i = n - 1;
+        val prefix = if is_first then using_prefix else "";
+        val verb = if is_last andalso solved then "by " else "apply ";
+      in
+        prefix ^ verb ^ "(" ^ body ^ ")"
+      end;
+  in
+    space_implode cmd_sep (map_index (uncurry fmt) method_bodies)
+  end;
+
 fun run_method_on_state state method_body local_facts =
   let
     val ctxt = Proof.context_of state;
@@ -353,6 +379,28 @@ fun run_method_on_state state method_body local_facts =
     val (_, st') = simple_apply apply state;
   in
     (st', num_goals st' = 0)
+  end;
+
+(* Fold a list of method bodies through the state. `using` facts only attach
+   to the first step (matching how Isabelle's `using` threads through the
+   proof). Returns final state and whether the last step closed the goal,
+   or NONE if any step raised / failed to make progress on a non-final
+   subgoal structure. *)
+fun run_method_sequence state method_bodies local_facts =
+  let
+    fun step (body, i) st =
+      let
+        val facts = if i = 0 then local_facts else [];
+        val (st', solved) = run_method_on_state st body facts;
+      in
+        (st', solved)
+      end;
+    fun loop _ [] st solved = (st, solved)
+      | loop i (b :: bs) st _ =
+          let val (st', solved') = step (b, i) st
+          in loop (i + 1) bs st' solved' end;
+  in
+    loop 0 method_bodies state false
   end;
 
 fun explicitize_proof st method_name =
@@ -389,13 +437,18 @@ fun explicitize_proof st method_name =
           rewrite_names
           |> filter (fn name => can (Proof_Context.get_fact ctxt) (Facts.named name));
 
-        val explicit_method_opt =
-          if null replay_rule_names then NONE
-          else
-            (case method of
-              "simp" => SOME ("simp only: " ^ space_implode " " replay_rule_names)
-            | "auto" => SOME ("auto simp only: " ^ space_implode " " replay_rule_names)
-            | _ => NONE);
+        (* Baseline bundles: include simp_thms so that the basic HOL simplifications
+           simp does by default (True/False laws, boolean normalization, quantifier
+           elimination) remain available without dragging in the full simpset. Without
+           this, `simp only: R1 R2` leaves residuals like `True ∧ ¬False ∧ True` that
+           a subsequent `done` can't close. `simp_thms` is small (~50 rules) relative
+           to the default simpset (thousands), so the search-burden reduction is still
+           massive. *)
+        val baseline_rule_names =
+          ["simp_thms"]
+          |> filter (fn name => can (Proof_Context.get_fact ctxt) (Facts.named name));
+
+        val full_rule_names = baseline_rule_names @ replay_rule_names;
 
         fun solved_by method_body =
           (case Exn.capture (fn () => #2 (run_method_on_state proof_state method_body local_facts)) () of
@@ -407,14 +460,72 @@ fun explicitize_proof st method_name =
             Exn.Res (_, solved) => (solved, "")
           | Exn.Exn exn => (false, "Method execution failed: " ^ Runtime.exn_message exn));
 
-        val (chosen_method, chosen_solved) =
-          (case explicit_method_opt of
-            SOME explicit_method =>
-              if solved_by explicit_method then (explicit_method, true)
-              else (method, method_solved)
-          | NONE => (method, method_solved));
+        (* Goal thm of an open proof state; extracts the Pure-level proposition
+           representing the current subgoals. *)
+        fun state_goal_prop st = Thm.prop_of (#goal (Proof.goal st));
 
-        val command = format_command using_prefix chosen_solved chosen_method;
+        (* Accepts a candidate *sequence* of method bodies iff running them in
+           order from `proof_state` reaches an end-state equivalent to the
+           original method's end-state. For the single-element case this is the
+           same check as `same_state_as` (and replaces it); for multi-step
+           plans it validates the whole chain before the Python side commits. *)
+        fun sequence_same_state_as method_bodies =
+          (case run_result of
+            Exn.Res (st_orig, orig_solved) =>
+              (case Exn.capture
+                  (fn () => run_method_sequence proof_state method_bodies local_facts) () of
+                Exn.Res (st_cand, cand_solved) =>
+                  if orig_solved andalso cand_solved then true
+                  else if orig_solved <> cand_solved then false
+                  else
+                    (case Exn.capture
+                        (fn () => state_goal_prop st_cand aconv state_goal_prop st_orig) () of
+                      Exn.Res b => b
+                    | Exn.Exn _ => false)
+              | Exn.Exn _ => false)
+          | Exn.Exn _ => false);
+
+        (* Candidate plans in preference order. Each plan is a list of method
+           bodies to be issued as a sequence of `apply (…)` steps (with the
+           last step rewritten to `by (…)` by the caller iff the original
+           method closed the goal).
+
+           Plan A — single-step `only:` form: the tightest emission, leaves the
+             default simpset behind entirely. Works when simp_thms + traced
+             rules are sufficient on their own.
+
+           Plan B — two-stage split: first normalize with simp_thms alone, then
+             apply the traced replay rules alone. Gives simp two much smaller
+             simpsets per call. Works in more cases than Plan A because the
+             intermediate states cleanly separate boolean normalization from
+             domain-specific rewriting. *)
+        val method_plans =
+          if null replay_rule_names then []
+          else
+            (case method of
+              "simp" =>
+                [["simp only: " ^ space_implode " " full_rule_names]] @
+                (if null baseline_rule_names then []
+                 else
+                   [["simp only: " ^ space_implode " " baseline_rule_names,
+                     "simp only: " ^ space_implode " " replay_rule_names]])
+            | "auto" =>
+                [["auto simp only: " ^ space_implode " " full_rule_names]]
+            | _ => []);
+
+        fun first_valid_plan [] = NONE
+          | first_valid_plan (plan :: rest) =
+              if sequence_same_state_as plan then SOME plan
+              else first_valid_plan rest;
+
+        (* Mirror the original method's solved-ness when accepting the candidate, so
+           the emitted last-step uses `by (…)` iff the original closed the goal. *)
+        val (chosen_bodies, chosen_solved) =
+          (case first_valid_plan method_plans of
+            SOME plan => (plan, method_solved)
+          | NONE => ([method], method_solved));
+
+        val command = format_command_sequence using_prefix chosen_solved chosen_bodies;
 
         val trace_header =
           if null rewrite_names then "No rewrite rules were extracted from simp trace."
@@ -422,7 +533,7 @@ fun explicitize_proof st method_name =
             "Extracted rewrite rules (not directly replayable by name in this context): " ^
             space_implode " " rewrite_names
           else
-            "Extracted rewrite rules: " ^ space_implode " " replay_rule_names;
+            "Extracted rewrite rules: " ^ space_implode " " full_rule_names;
 
         val trace_log =
           cat_lines ([trace_header] @

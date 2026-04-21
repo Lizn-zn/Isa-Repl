@@ -1,29 +1,7 @@
 import os
 import re
-from py4j.java_gateway import JavaGateway, GatewayParameters, GatewayClient
-from py4j.java_collections import ListConverter
 
-# Connect to the JVM
-gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_convert=True))
-
-# Get the IsaREPL application
-isa_repl = gateway.entry_point
-
-# Initialize REPL with a theory file
-theory_file = os.path.abspath("/home/hbd/verification/l4v/proof/refine/ARM/CSpace_R.thy")
-
-# print(theory_file)
-
-isa_repl._initializeRepl(theory_file, "/home/hbd/verification/l4v", "Refine", ["/home/hbd/verification/l4v"])
-
-with open(theory_file, "r", encoding="utf-8") as f:
-    content = f.read()
-
-# Compile the theory file
-steps = isa_repl._parse_to_steps(content).split("<\\SEP>")
-# Add a proof step
-for i, step in enumerate(steps):
-    print(i, step)
+from utils.repl import IsaRepl
 
 
 def replaced_by_sorry(isar_commands: list[str]):
@@ -50,8 +28,6 @@ def replaced_by_sorry(isar_commands: list[str]):
     replaced_commands = []
     i, length = 0, len(isar_commands)
     while i < length:
-        if i == 210:
-            pass
         if isar_commands[i].endswith("begin"):
             depth += 1
         if isar_commands[i].strip() == "end":
@@ -63,10 +39,8 @@ def replaced_by_sorry(isar_commands: list[str]):
             notepad_depth = depth
         if not in_notepad:
             if any([re.split(r'[ ()]+', isar_commands[i].strip())[0] == keyword for keyword in keywords]):
-                to_be_replaced = []
                 while i < length and any(
                         [re.split(r'[ ()\n]+', isar_commands[i].strip())[0] == keyword for keyword in keywords]):
-                    to_be_replaced.append(isar_commands[i])
                     i += 1
                 replaced_commands.append("sorry")
             else:
@@ -84,38 +58,52 @@ def is_comment(isar_command: str):
 
 
 def delete_comments(isar_commands: list[str]):
-    result = []
-    for command in isar_commands:
-        if is_comment(command):
-            continue
-        result.append(command)
-    return result
+    return [c for c in isar_commands if not is_comment(c)]
 
 
-steps = delete_comments(steps)
-steps = replaced_by_sorry(steps)
+def main():
+    theory_file = os.path.abspath(
+        "/home/hbd/verification/l4v/proof/invariant-abstract/Deterministic_AI.thy"
+    )
+    working_dir = "/home/hbd/verification/l4v"
+    session = "AInvs"
+    session_dirs = ["/home/hbd/verification/l4v"]
 
-# all_steps_str = "\n".join(steps[1:])
-# print(isa_repl._step(all_steps_str))
+    with open(theory_file, "r", encoding="utf-8") as f:
+        content = f.read()
 
-for i, step in enumerate(steps):
-    print(i, step)
+    with IsaRepl(port=25563, create_port=True) as isa_repl:
+        isa_repl.initialize(theory_file, working_dir, session, session_dirs)
 
-plain = False
+        ok, steps = isa_repl.parse(content)
+        if not ok:
+            raise ValueError("Failed to parse theory")
 
-if plain:
-    for i, step in enumerate(steps):
-        print(i, step, "\n", isa_repl._step(steps[i]))
-else:
-    i, unprocessed, attached_num = 1, '', 0
-    while i < len(steps):
-        result = isa_repl._step(unprocessed + steps[i])
-        if "False<\\SEP>" in result:
-            unprocessed += steps[i] + '\n'
-            attached_num += 1
+        for i, step in enumerate(steps):
+            print(i, step)
+
+        steps = delete_comments(steps)
+        # steps = replaced_by_sorry(steps)
+
+        for i, step in enumerate(steps):
+            print(i, step)
+
+        plain = False
+        if plain:
+            for i, step in enumerate(steps):
+                ok, msg = isa_repl.step(step)
+                print(i, step, "\n", ok, msg)
         else:
-            print(i, unprocessed + steps[i], "\n", result)
-            unprocessed = ''
-            attached_num = 0
-        i += 1
+            i, unprocessed = 1, ""
+            while i < len(steps):
+                ok, msg = isa_repl.step(unprocessed + steps[i])
+                if not ok:
+                    unprocessed += steps[i] + "\n"
+                else:
+                    print(i, unprocessed + steps[i], "\n", ok, msg)
+                    unprocessed = ""
+                i += 1
 
+
+if __name__ == "__main__":
+    main()
