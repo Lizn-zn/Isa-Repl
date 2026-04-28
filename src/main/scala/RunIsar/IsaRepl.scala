@@ -1045,10 +1045,10 @@ class IsaREPL(
   ): String = {
     // Normalize the target string by removing extra whitespace and newlines
     val sanitised_isar_string =
-      isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      isar_string.trim.replaceAll("\\s+", " ")
     // Get current transition and its text from the stored transitions
     val (transition, text) = transitions_and_texts(frontier_proceeding_index)
-    val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+    val sanitised_text = text.trim.replaceAll("\\s+", " ")
     if (sanitised_text.trim.isEmpty) {
       // Skip empty transitions and continue recursively
       frontier_proceeding_index += 1
@@ -1071,11 +1071,11 @@ class IsaREPL(
   var accumulative_index: Int = 0
   def accumulative_step_before_theorem_starts(theorem_name: String): Unit = {
     val sanitised_theorem_name =
-      theorem_name.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      theorem_name.trim.replaceAll("\\s+", " ")
     var found_theorem: Boolean = false
     while (!found_theorem) {
       val (transition, text) = transitions_and_texts(accumulative_index)
-      val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      val sanitised_text = text.trim.replaceAll("\\s+", " ")
       if (sanitised_text == sanitised_theorem_name) {
         found_theorem = true
       } else {
@@ -1089,7 +1089,7 @@ class IsaREPL(
     var proof_finished: Boolean = false
     while (!proof_finished) {
       val (transition, text) = transitions_and_texts(accumulative_index)
-      val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      val sanitised_text = text.trim.replaceAll("\\s+", " ")
       if (sanitised_text.isEmpty) {
         accumulative_index += 1
       } else {
@@ -1254,7 +1254,7 @@ class IsaREPL(
    */
   def parse_to_steps(isar_string: String): String = {
     val isar_string_trim =
-      isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      isar_string.trim.replaceAll("\\s+", " ")
     var steps: String = ""
     var stateString: String = ""
     for (
