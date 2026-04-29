@@ -19,6 +19,8 @@ class IsaReplApplication {
 
   private var repl: IsaREPL = _
 
+  def _getRepl(): IsaREPL = repl
+
   def _setIsabelleHome(isabelleHome: String): Unit = {
     if (isabelleHome != null && isabelleHome.nonEmpty) {
       this.isabelleHome = Some(Path.of(isabelleHome))
