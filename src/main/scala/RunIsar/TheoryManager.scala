@@ -123,7 +123,7 @@ class TheoryManager(
     val p = if (import_string.startsWith("\"") && import_string.endsWith("\"")) {
       import_string.substring(1, import_string.length - 1)
     } else import_string
-    p.split("/").last.split(".thy").head
+    p.split("/").last.stripSuffix(".thy")
   }
 
   def getTheorySource(name: String): Source = Heap(name)
