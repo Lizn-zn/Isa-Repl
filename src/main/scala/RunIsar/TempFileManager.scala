@@ -91,13 +91,24 @@ class TempFileManager {
       srcDir += "/"
     }
 
-    val assets = new ClassGraph().acceptPackages("RunIsar").scan().getResourcesMatchingWildcard(srcDir + "*")
-    assets.forEach { resource =>
-      val targetRelPath = resource.getPathRelativeToClasspathElement().replace(srcDir, "")
-      // Files.createDirectories(targetFile.getParent)
-      Files.copy(
-        resource.open(), Paths.get(targetDir.getPath(), targetRelPath), StandardCopyOption.REPLACE_EXISTING
-      )
+    Files.createDirectories(targetDir.toPath)
+    Using.resource(new ClassGraph().acceptPackages("RunIsar").scan()) { scan =>
+      scan.getAllResources.asScala
+        .filter(resource =>
+          resource.getPathRelativeToClasspathElement().startsWith(srcDir)
+        )
+        .foreach { resource =>
+          val targetRelPath =
+            resource.getPathRelativeToClasspathElement().stripPrefix(srcDir)
+          val targetPath = Paths.get(targetDir.getPath(), targetRelPath)
+          val parent = targetPath.getParent
+          if (parent != null) {
+            Files.createDirectories(parent)
+          }
+          Using.resource(resource.open()) { in =>
+            Files.copy(in, targetPath, StandardCopyOption.REPLACE_EXISTING)
+          }
+        }
     }
 
   }
