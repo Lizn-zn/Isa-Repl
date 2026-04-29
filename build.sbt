@@ -3,7 +3,7 @@ scalaVersion := "2.13.14"
 lazy val root = (project in file("."))
   .settings(
     name := "Isa-Repl",
-    organization := "ch.epfl.scala",
+    organization := "edu.nju.softprover",
     version := "1.0",
 
     libraryDependencies ++= Seq(
@@ -18,8 +18,6 @@ lazy val root = (project in file("."))
 
     // Configure ScalaTest to show output
     Test / testOptions += Tests.Argument("-o"),
-
-    resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
 
     assembly / assemblyOutputPath := file("target/IsaREPL.jar"),
     assembly / mainClass := Some("org.isarepl.IsaReplGatewayServer"),

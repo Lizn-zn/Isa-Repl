@@ -15,13 +15,7 @@ import java.nio.file.Path
 class IsaReplApplication {
   private val logger: Logger = LoggerFactory.getLogger(getClass.getName)
   var isabelleHome: Option[Path] = IsaREPL.resolveIsabelleHome()
-  val workingDirectory: Path = {
-    val path = Path.of("/tmp/IsaREPL/")
-    if (!Files.exists(path)) {
-      Files.createDirectories(path)
-    }
-    path.toAbsolutePath
-  }
+  val workingDirectory: Path = Files.createTempDirectory("IsaREPL")
 
   private var repl: IsaREPL = _
 
