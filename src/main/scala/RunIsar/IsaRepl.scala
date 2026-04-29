@@ -133,19 +133,6 @@ class IsaREPL(
     compileFunction[String, Theory, Theory](
       "fn (str,thy) => Thy_Info.script_thy Position.none str thy"
     )
-  val init_toplevel: MLFunction0[ToplevelState] =
-    if (Version.from2023)
-      compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE")
-    else
-      compileFunction0[ToplevelState]("Toplevel.init_toplevel")
-  val is_proof: MLFunction[ToplevelState, Boolean] =
-    compileFunction[ToplevelState, Boolean]("Toplevel.is_proof")
-  val is_skipped_proof: MLFunction[ToplevelState, Boolean] =
-    compileFunction[ToplevelState, Boolean]("Toplevel.is_skipped_proof")
-  val proof_level: MLFunction[ToplevelState, Int] =
-    compileFunction[ToplevelState, Int]("Toplevel.level")
-  val proof_of: MLFunction[ToplevelState, ProofState.T] =
-    compileFunction[ToplevelState, ProofState.T]("Toplevel.proof_of")
   val command_exception
       : MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
     compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
@@ -183,8 +170,6 @@ class IsaREPL(
       compileFunction[Theory, ToplevelState]("Toplevel.make_state o SOME")
     else
       compileFunction[ToplevelState, Theory]("Toplevel.theory_of")
-  val context_of_state: MLFunction[ToplevelState, Context] =
-    compileFunction[ToplevelState, Context]("Toplevel.context_of")
   val name_of_transition: MLFunction[Transition.T, String] =
     compileFunction[Transition.T, String]("Toplevel.name_of")
   val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
@@ -797,7 +782,7 @@ class IsaREPL(
          |""".stripMargin
     )
 
-  var toplevel: ToplevelState = init_toplevel().force.retrieveNow
+  var toplevel: ToplevelState = ToplevelState.Ops.initTopLevel().force.retrieveNow
   logger.debug("Checkpoint 12")
   def reset_map(): Unit = {
     top_level_state_map = Map()
@@ -805,7 +790,7 @@ class IsaREPL(
 
   def reset_problem(): Unit = {
     thy1 = theoryManager.beginTheory()
-    toplevel = init_toplevel().force.retrieveNow
+    toplevel = ToplevelState.Ops.initTopLevel().force.retrieveNow
     reset_map()
   }
 
@@ -833,10 +818,8 @@ class IsaREPL(
     getProofLevel(top_level_state) == 0
   }
 
-  def getProofLevel(top_level_state: ToplevelState): Int =
-    proof_level(top_level_state).retrieveNow
-
-  def getProofLevel: Int = getProofLevel(toplevel)
+  def getProofLevel(top_level_state: ToplevelState = toplevel): Int =
+    ToplevelState.Ops.getProofLevel(top_level_state).force.retrieveNow
 
   def singleTransitionWith10sTimeout(
       single_transition: Transition.T,
@@ -895,7 +878,7 @@ class IsaREPL(
     val continue = new Breaks
     // Initialising the state string
     var stateString = getStateString
-    var proof_level_number = getProofLevel
+    var proof_level_number = getProofLevel()
     Breaks.breakable {
       for ((transition, text) <- parse_text(thy1, isarString).force.retrieveNow)
         continue.breakable {
@@ -908,7 +891,7 @@ class IsaREPL(
             continue.break()
           else {
             stateActionTotal =
-              stateActionTotal + (stateString + "<\\STATESEP>" + text.trim + "<\\STATESEP>" + s"$getProofLevel" + "<\\TRANSEP>")
+              stateActionTotal + (stateString + "<\\STATESEP>" + text.trim + "<\\STATESEP>" + s"${getProofLevel()}" + "<\\TRANSEP>")
             stateString = singleTransition(transition)
           }
         }
@@ -1093,7 +1076,7 @@ class IsaREPL(
         // println("During theorem" + sanitised_text)
         // println("Stepping to: " + sanitised_text)
         singleTransition(transition)
-        val proof_level = getProofLevel
+        val proof_level = getProofLevel()
         if (proof_level == 0) proof_finished = true
         accumulative_index += 1
       }
@@ -1327,7 +1310,7 @@ class IsaREPL(
     fileContent = Files.readString(Path.of(path_to_thy))
     fileContentCopy = fileContent
     thy1 = theoryManager.beginTheory()
-    toplevel = init_toplevel().force.retrieveNow
+    toplevel = ToplevelState.Ops.initTopLevel().force.retrieveNow
     reset_map()
     "Reset"
   }
