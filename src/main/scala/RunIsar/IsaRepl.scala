@@ -78,9 +78,9 @@ object ProofContext extends AdHocConverter("Proof_Context.T")
   */
 //noinspection TypeAnnotation,ScalaUnusedSymbol
 class IsaREPL(
-    var isabelle_home: String,
+    var isabelle_home: Path,
     var path_to_thy: String,
-    var working_directory: String,
+    var working_directory: Path,
     var session: String = "HOL",
     var session_roots: List[String] = Nil,
     var debug: Boolean = false
@@ -106,10 +106,10 @@ class IsaREPL(
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
     path_to_thy.split("/").last.replace(".thy", "")
-  val isabelleHome: Path = Paths.get(isabelle_home)
+  val isabelleHome: Path = isabelle_home
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
-    workingDirectory = Path.of(working_directory),
+    workingDirectory = working_directory,
     logic = session,
     sessionRoots = session_roots.map(s => Path.of(s))
   )
@@ -1394,6 +1394,17 @@ class IsaREPL(
 }
 
 object IsaREPL {
+  def resolveIsabelleHome(): Option[Path] = {
+    sys.env.get("ISABELLE_HOME").map(Path.of(_)).orElse {
+      sys.env.get("PATH").flatMap { path =>
+        path.split(":").iterator
+          .map(dir => Path.of(dir, "isabelle"))
+          .find(Files.isExecutable(_))
+          .map(_.getParent().getParent())
+      }
+    }
+  }
+
   def isabelle2unicode(str: String): String = {
     Symbols.symbolsToUnicode(str)
   }

@@ -54,9 +54,9 @@ For TheoryManager
  */
 
 class TheoryManager(
-    val isabelle_home: String,
+    val isabelle_home: Path,
     val path_to_thy: String,
-    val working_directory: String,
+    val working_directory: Path,
     val session: String,
     val sessionRoots: List[String],
     implicit val isabelle: Isabelle,
@@ -64,7 +64,7 @@ class TheoryManager(
     val debug: Boolean = false
 ) {
 
-  if (working_directory.contains(isabelle_home)) {
+  if (working_directory.startsWith(isabelle_home)) {
     throw new Exception(
       "working_directory should not be set in the same directory as isabelleHome"
     )
@@ -125,7 +125,7 @@ class TheoryManager(
   // starter_string is for example "theory Test imports Main HOL.Real begin"
   val starter_string: String = getStarterString.trim.replaceAll("\n", " ").trim
   val theoryStarter: TheoryManager.Text =
-    TheoryManager.Text(starter_string, Path.of(working_directory).resolve(""))
+    TheoryManager.Text(starter_string, working_directory.resolve(""))
 
   /** Normalizes an import pattern string by removing surrounding quotes (if
     * present), extracting the theory name if it is a path.
