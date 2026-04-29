@@ -124,12 +124,12 @@ class IsaREPL(
   val thy0 = Theory(autoIsaPath)
   val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
   // Compile useful ML functions
-  val num_of_processors: MLFunction0[Int] =
+  lazy val num_of_processors: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
-  val num_of_threads: MLFunction0[Int] =
+  lazy val num_of_threads: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.max_threads ()")
   // Compile useful ML functions
-  val script_thy: MLFunction2[String, Theory, Theory] =
+  lazy val script_thy: MLFunction2[String, Theory, Theory] =
     compileFunction[String, Theory, Theory](
       "fn (str,thy) => Thy_Info.script_thy Position.none str thy"
     )
@@ -165,14 +165,14 @@ class IsaREPL(
   ]("fn (int, tr, st) => Toplevel.command_errors int tr st")
   val toplevel_end_theory: MLFunction[ToplevelState, Theory] =
     compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
-  val theory_of_state: MLFunction[_, _] =
+  lazy val theory_of_state: MLFunction[_, _] =
     if (Version.from2023)
       compileFunction[Theory, ToplevelState]("Toplevel.make_state o SOME")
     else
       compileFunction[ToplevelState, Theory]("Toplevel.theory_of")
-  val name_of_transition: MLFunction[Transition.T, String] =
+  lazy val name_of_transition: MLFunction[Transition.T, String] =
     compileFunction[Transition.T, String]("Toplevel.name_of")
-  val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
+  lazy val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
     compileFunction[Theory, String, List[(Transition.T, String)]]("""fn (thy, text) => let
         |  val transitions = Outer_Syntax.parse_text thy (K thy) Position.start text
         |  fun addtext symbols [tr] =
@@ -186,16 +186,16 @@ class IsaREPL(
     compileFunction[ToplevelState, String](
       "fn (s) => XML.content_of (YXML.parse_body (Toplevel.string_of_state s))"
     )
-  val pretty_local_facts: MLFunction2[ToplevelState, Boolean, List[Pretty.T]] =
+  lazy val pretty_local_facts: MLFunction2[ToplevelState, Boolean, List[Pretty.T]] =
     compileFunction[ToplevelState, Boolean, List[Pretty.T]](
       "fn (tls, b) => Proof_Context.pretty_local_facts b (Toplevel.context_of tls)"
     )
-  val make_pretty_list_string_list: MLFunction[List[Pretty.T], List[String]] =
+  lazy val make_pretty_list_string_list: MLFunction[List[Pretty.T], List[String]] =
     compileFunction[List[Pretty.T], List[String]](
       "fn (pretty_list) => map Pretty.unformatted_string_of pretty_list"
     )
 
-  val local_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] =
+  lazy val local_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] =
     compileFunction[ToplevelState, List[(String, String)]](
       """fn tls =>
         |  let val ctxt = Toplevel.context_of tls;
@@ -218,14 +218,14 @@ class IsaREPL(
         |         condensed_thms
         |  end""".stripMargin
     )
-  val global_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] =
+  lazy val global_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] =
     compileFunction[ToplevelState, List[(String, String)]](
       """fn tls =>
           | map (fn tup => (#1 tup, Pretty.unformatted_string_of (Element.pretty_statement (Toplevel.context_of tls) "test" (#2 tup))))
           | (Global_Theory.all_thms_of (Proof_Context.theory_of (Toplevel.context_of tls)) false)
           """.stripMargin
     )
-  val fact_definition: MLFunction2[ToplevelState, String, String] =
+  lazy val fact_definition: MLFunction2[ToplevelState, String, String] =
     compileFunction[ToplevelState, String, String](
       """fn (tls, name) =>
         | let val ctxt = Toplevel.context_of tls;
@@ -239,7 +239,7 @@ class IsaREPL(
     fact_definition(toplevel_state, theorem_name).force.retrieveNow
   }
 
-  val get_dependent_thms: MLFunction2[ToplevelState, String, List[String]] =
+  lazy val get_dependent_thms: MLFunction2[ToplevelState, String, List[String]] =
     compileFunction[ToplevelState, String, List[String]](
       """fn (tls, name) =>
         | let val thy = Toplevel.theory_of tls;
@@ -248,7 +248,7 @@ class IsaREPL(
         |     map (fn x => (#1 (#2 x))) (Thm_Deps.thm_deps thy thm)
         | end""".stripMargin
     )
-  val get_dependent_thms_with_thy_names
+  lazy val get_dependent_thms_with_thy_names
       : MLFunction2[ToplevelState, String, List[String]] =
     compileFunction[ToplevelState, String, List[String]](
       """fn (tls, name) =>
@@ -323,7 +323,7 @@ class IsaREPL(
     }
   }
 
-  val get_used_consts: MLFunction2[ToplevelState, String, List[String]] =
+  lazy val get_used_consts: MLFunction2[ToplevelState, String, List[String]] =
     compileFunction[ToplevelState, String, List[String]](
       """fn(tls, inner_syntax) =>
         |let
@@ -392,7 +392,7 @@ class IsaREPL(
     deduplicated_all_defs.distinct
   }
   // Nasty locales
-  val locales_opened_for_state: MLFunction[ToplevelState, List[String]] =
+  lazy val locales_opened_for_state: MLFunction[ToplevelState, List[String]] =
     compileFunction[ToplevelState, List[String]](
       """fn (tls) => Locale.get_locales (Toplevel.theory_of tls)""".stripMargin
     )
@@ -449,7 +449,7 @@ class IsaREPL(
     *
     * The output is formatted as human-readable text, with XML markup removed.
     */
-  val parse_vars: MLFunction[ToplevelState, List[String]] =
+  lazy val parse_vars: MLFunction[ToplevelState, List[String]] =
     compileFunction[ToplevelState, List[String]](
       s"""fn (toplevel_state) =>
         |  let
@@ -507,7 +507,7 @@ class IsaREPL(
         |  end""".stripMargin
     )
 
-  val parse_assms: MLFunction[ToplevelState, List[String]] =
+  lazy val parse_assms: MLFunction[ToplevelState, List[String]] =
     compileFunction[ToplevelState, List[String]](
       s"""fn (toplevel_state) =>
         | let
@@ -602,7 +602,7 @@ class IsaREPL(
   val SMT_Normalize: String = thy1.importMLStructureNow("SMT_Normalize")
   val SMT_Util: String = thy1.importMLStructureNow("SMT_Util")
   val SMT_Translate: String = thy1.importMLStructureNow("SMT_Translate")
-  val parse_to_smt: MLFunction[ToplevelState, String] =
+  lazy val parse_to_smt: MLFunction[ToplevelState, String] =
     compileFunction[ToplevelState, String](
       s""" fn (state) =>  
             |    let  
@@ -679,7 +679,7 @@ class IsaREPL(
     *   list of Strings is the list of executable commands to close the top
     *   subgoal.
     */
-  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
+  lazy val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
     String
   ], List[String], (Boolean, (String, List[String]))] =
     compileFunction[ToplevelState, Theory, List[String], List[
@@ -709,7 +709,7 @@ class IsaREPL(
             |""".stripMargin
     )
 
-  val parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[
+  lazy val parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[
     String
   ], List[String], String] =
     compileFunction[ToplevelState, Theory, String, List[String], List[
@@ -725,7 +725,7 @@ class IsaREPL(
         |""".stripMargin
     )
 
-  val parse_hammer_facts_with_theory_names
+  lazy val parse_hammer_facts_with_theory_names
       : MLFunction5[ToplevelState, Theory, String, List[String], List[
         String
       ], String] =
@@ -742,7 +742,7 @@ class IsaREPL(
          |""".stripMargin
     )
 
-  val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
+  lazy val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
     compileFunction[ToplevelState, Theory, Unit](
       s"""fn (state, thy) =>
          |    let
@@ -754,7 +754,7 @@ class IsaREPL(
          |""".stripMargin
     )
 
-  val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
+  lazy val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
     compileFunction[ToplevelState, (Boolean, String, String)](
       s""" fn (state) =>
         |        let
@@ -771,7 +771,7 @@ class IsaREPL(
     thy_for_nitpick.importMLStructureNow("Nitpick")
   val Nitpick_Commands: String =
     thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
-  val normal_with_NitPick: MLFunction2[ToplevelState, Theory, String] =
+  lazy val normal_with_NitPick: MLFunction2[ToplevelState, Theory, String] =
     compileFunction[ToplevelState, Theory, String](
       s"""fn (state, thy) =>
          |    let
