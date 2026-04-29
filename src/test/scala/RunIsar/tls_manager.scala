@@ -38,6 +38,9 @@ class TlsManagerTests extends AnyFunSuite {
     isa_repl.focus_tls("test")
     val goal2 = isa_repl.extract_goal()
     assert(goal == goal2)
+    isa_repl.step("have ?thesis\n")
+    val goal3: String = isa_repl.extract_goal()
+    assert(goal3 != "")
   }
 
 //   test("Create the theorem to be proved") {
