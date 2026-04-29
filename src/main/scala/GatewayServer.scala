@@ -27,7 +27,7 @@ class IsaReplApplication {
 
   def _initializeRepl(
       pathToThy: String,
-      workingDirectory: Path = this.workingDirectory,
+      workingDirectory: String = this.workingDirectory.toString,
       session: String = "HOL",
       sessionRoots: util.ArrayList[String] = new util.ArrayList[String]()
   ): String = {
@@ -42,7 +42,7 @@ class IsaReplApplication {
             repl = new IsaREPL(
               isabelle_home = home,
               path_to_thy = pathToThy,
-              working_directory = workingDirectory,
+              working_directory = Path.of(workingDirectory),
               session = session,
               session_roots = sessionRoots.asScala.toList
             )
