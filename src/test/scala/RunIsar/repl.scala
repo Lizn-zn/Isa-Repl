@@ -1,7 +1,7 @@
 package RunIsar
 
 import org.scalatest.funsuite.AnyFunSuite
-import java.nio.file.Paths
+import java.nio.file.{Path, Paths}
 import RunIsar.IsaREPL
 import de.unruh.isabelle.control.IsabelleMLException
 
@@ -11,12 +11,12 @@ class ReplTests extends AnyFunSuite {
     "ISABELLE_HOME",
     throw new Exception("ISABELLE_HOME not set")
   )
-  val isabelle_home: String = isabelleHome_str
+  val isabelle_home: Path = Path.of(isabelleHome_str)
 
   val path_to_thy: String =
     Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory: String =
-    Paths.get("python-test").toAbsolutePath.toString
+  val working_directory: Path =
+    Paths.get("python-test").toAbsolutePath
   val isa_repl = new IsaREPL(
     isabelle_home = isabelle_home,
     path_to_thy = path_to_thy,

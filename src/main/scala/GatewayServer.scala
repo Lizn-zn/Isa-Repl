@@ -5,57 +5,54 @@ import RunIsar.{IsaREPL, TempFileManager}
 import RunIsar.Exceptions.IsabelleMLException
 import scala.jdk.CollectionConverters._
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, Path}
 import java.util
 import java.util.concurrent.TimeoutException
 
 class IsaReplApplication {
-  val isabelleHome: String = sys.env.getOrElse(
-    "ISABELLE_HOME",
-    throw new Exception("ISABELLE_HOME not set")
-  )
-  val workingDirectory: String = {
-    val path = Paths.get("/tmp/IsaREPL/")
+  var isabelleHome: Option[Path] = IsaREPL.resolveIsabelleHome()
+  val workingDirectory: Path = {
+    val path = Path.of("/tmp/IsaREPL/")
     if (!Files.exists(path)) {
       Files.createDirectories(path)
     }
-    path.toAbsolutePath.toString
+    path.toAbsolutePath
   }
 
   private var repl: IsaREPL = _
 
-  def _initializeRepl(pathToThy: String): String = {
-    val result = 
-      try {
-        repl = new IsaREPL(
-          isabelle_home = isabelleHome,
-            path_to_thy = pathToThy,
-            working_directory = workingDirectory
-          )
-          "True" + "<\\SEP>" + "initialize successfully"
-      } catch {
-        case e: Exception =>
-          println(s"Error during initialization: ${e.getMessage}")
-          "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
-      }
-    result
+  def _setIsabelleHome(isabelleHome: String): Unit = {
+    if (isabelleHome != null && isabelleHome.nonEmpty) {
+      this.isabelleHome = Some(Path.of(isabelleHome))
+    } else {
+      throw new IllegalArgumentException(
+        "Isabelle home path cannot be null or empty"
+      )
+    }
   }
 
   def _initializeRepl(
       pathToThy: String,
-      workingDirectory: String,
-      session: String,
-      sessionRoots: util.ArrayList[String]
+      workingDirectory: Path = this.workingDirectory,
+      session: String = "HOL",
+      sessionRoots: util.ArrayList[String] = new util.ArrayList[String]()
   ): String = {
     val result = 
       try {
-        repl = new IsaREPL(
-          isabelle_home = isabelleHome,
-          path_to_thy = pathToThy,
-          working_directory = workingDirectory,
-          session = session,
-          session_roots = sessionRoots.asScala.toList
-        )
+        isabelleHome match {
+          case None =>
+            throw new IllegalStateException(
+              "ISABELLE_HOME is not set and isabelle executable not found in PATH"
+            )
+          case Some(home) =>
+            repl = new IsaREPL(
+              isabelle_home = home,
+              path_to_thy = pathToThy,
+              working_directory = workingDirectory,
+              session = session,
+              session_roots = sessionRoots.asScala.toList
+            )
+        }
         "True" + "<\\SEP>" + "initialize successfully"
       } catch {
         case e: Exception =>
