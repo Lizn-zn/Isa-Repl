@@ -40,7 +40,7 @@ class ParserTests extends AnyFunSuite {
           show ?thesis by (simp add: eq1 eq2)
         """
     val result1: String = isa_repl.parse_to_steps(theorem_string)
-    val steps: List[String] = result1.split("<\\\\SEP>").toList
+    val steps: List[String] = result1.split("<\\\\SEP>").toList // NOTE: the separator is "<\\\\SEP>" cos "\\S" is a special character in regex, so we need to escape it with another backslash. And in Scala string, we need to escape the backslash with another backslash, so we end up with "<\\\\SEP>"
     assert(
       steps == List(
         "",
