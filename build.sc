@@ -23,7 +23,7 @@ object `package` extends PublishModule with SbtModule {
 
   def pomSettings = PomSettings(
     "Isa-Repl",
-    "ch.epfl.scala",
+    "edu.nju.softprover",
     "",
     Seq(),
     VersionControl(None, None, None, None),
@@ -31,11 +31,6 @@ object `package` extends PublishModule with SbtModule {
   )
 
   def publishVersion = "1.0"
-
-  def repositories = super.repositories() ++ Seq(
-    "https://oss.sonatype.org/content/repositories/snapshots",
-    "https://s01.oss.sonatype.org/content/repositories/snapshots"
-  )
 
   object test extends SbtTests with TestModule.ScalaTest {
 

@@ -105,7 +105,7 @@ class IsaREPL(
   logger.debug("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
-    path_to_thy.split("/").last.replace(".thy", "")
+    Path.of(path_to_thy).getFileName.toString.replace(".thy", "")
   val isabelleHome: Path = isabelle_home
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
