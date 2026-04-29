@@ -25,11 +25,21 @@ class IsaReplApplication {
     }
   }
 
+  def _initializeRepl(pathToThy: String): String = {
+    // This is kept since scala default parameters cannot be called from python through py4j.
+    _initializeRepl(
+      pathToThy=pathToThy, 
+      workingDirectory=this.workingDirectory.toString, 
+      session="HOL", 
+      sessionRoots=new util.ArrayList[String]() // empty so that no ROOT file is needed.
+    )
+  }
+
   def _initializeRepl(
       pathToThy: String,
-      workingDirectory: String = this.workingDirectory.toString,
-      session: String = "HOL",
-      sessionRoots: util.ArrayList[String] = new util.ArrayList[String]()
+      workingDirectory: String,
+      session: String,
+      sessionRoots: util.ArrayList[String]
   ): String = {
     val result = 
       try {
