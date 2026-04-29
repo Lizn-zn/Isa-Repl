@@ -565,16 +565,13 @@ class IsaREPL(
     )
 
   // check if the sub-proof is finished; if it is, then we can successfully retrieve it by `this`, and thus return true; otherwise, return false
-  val parse_no_subgoals: MLFunction[ToplevelState, Boolean] =
+  val no_subgoals: MLFunction[ToplevelState, Boolean] =
     compileFunction[ToplevelState, Boolean](
       """fn (toplevel_state) =>
-        | let
-        |   val proof_state = Toplevel.proof_of toplevel_state;
-        |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
-        |   val result = Thm.no_prems goal;
-        | in
-        |   result
-        | end""".stripMargin
+        | case try Toplevel.proof_of toplevel_state of
+        |   NONE => true
+        | | SOME proof_state =>
+        |     Proof.goal_finished proof_state""".stripMargin
     )
 
   val parse_num_subgoals: MLFunction[ToplevelState, Int] =
@@ -1239,8 +1236,7 @@ class IsaREPL(
   }
 
   def check_no_subgoals(): Boolean = {
-    val no_subgoals = parse_no_subgoals(toplevel).force.retrieveNow
-    no_subgoals
+    this.no_subgoals(toplevel).force.retrieveNow
   }
 
   def check_num_subgoals(): Int = {
