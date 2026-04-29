@@ -1454,7 +1454,7 @@ object IsaREPL {
   def resolveIsabelleHome(): Option[Path] = {
     sys.env.get("ISABELLE_HOME").map(Path.of(_)).orElse {
       sys.env.get("PATH").flatMap { path =>
-        path.split(":").iterator
+        path.split(File.pathSeparator).iterator
           .map(dir => Path.of(dir, "isabelle"))
           .find(Files.isExecutable(_))
           .map(_.getParent().getParent())
