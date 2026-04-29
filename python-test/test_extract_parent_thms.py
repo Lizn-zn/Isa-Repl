@@ -1,43 +1,81 @@
 import os
+import subprocess
 import tempfile
+import time
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
-# Connect to the JVM
-gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_convert=True))
-# Get the IsaREPL application
-isa_repl = gateway.entry_point
 
-# Initialize REPL with a theory file
-template = """
+# Set L4V_PATH to your local l4v directory. See README for details.
+L4V_PATH = os.environ.get("L4V_PATH", "")
+
+
+def run_jar_file(jar_path, port):
+    env = os.environ.copy()
+    env["ISABELLE_HOME"] = os.path.expanduser("~/verification/isabelle/")
+    process = subprocess.Popen(["java", "-jar", jar_path, str(port)], env=env)
+    time.sleep(2)
+    return process
+
+
+def isapy_repl(port):
+    gateway = JavaGateway(
+        gateway_parameters=GatewayParameters(port=port, auto_convert=True)
+    )
+    return gateway.entry_point
+
+
+def split_result(result):
+    parts = result.split("<\\SEP>", 1)
+    if len(parts) != 2:
+        raise AssertionError(f"Malformed result: {result}")
+    return parts[0] == "True", parts[1]
+
+
+THEORY_TEMPLATE = """
 theory Test
     imports {session}.{theory_name}
 begin
 """
 
 
-def get_thms(logic, theory_name):
-    with tempfile.TemporaryDirectory(dir='.') as tmpdirname:
-        print("tempdir:", tmpdirname)
-        thy_path = os.path.join(tmpdirname, 'Test.thy')
-        with open(thy_path, 'w') as f:
-            f.write(template.format(logic=logic, theory_name=theory_name))
-        print(f.name)
-        isa_repl._initializeRepl(thy_path, "/home/hbd/verification/l4v", logic, ["/home/hbd/verification/l4v"])
+def test_extract_parent_thms(isa_repl):
+    assert L4V_PATH, "L4V_PATH environment variable is not set"
 
-        # Compile the theory file
-        result = isa_repl._compile()
-        print("Compilation result:", result)
+    session = "AInvs"
+    theory_name = "KHeap_AI"
 
-        result = isa_repl._extract_thms_defined_in_parent()
+    with tempfile.TemporaryDirectory(dir=".") as tmpdir:
+        thy_path = os.path.join(tmpdir, "Test.thy")
+        with open(thy_path, "w") as f:
+            f.write(THEORY_TEMPLATE.format(session=session, theory_name=theory_name))
 
-        result_lst = result.split("<\\SEP>")
+        ok, msg = split_result(
+            isa_repl._initializeRepl(thy_path, L4V_PATH, session, [L4V_PATH])
+        )
+        assert ok, msg
+
+        ok, msg = split_result(isa_repl._compile())
+        assert ok, msg
+        print("Compilation result:", msg)
+
+        ok, thms = split_result(isa_repl._extract_thms_defined_in_parent())
+        assert ok, thms
+        result_lst = thms.split("<\\SEP>")
         print(result_lst[:10])
-
-        print("length of thms: ", len(result_lst))
+        print("length of thms:", len(result_lst))
 
         isa_repl._exit()
 
 
-logic = 'AInvs'
-theory_name = 'KHeap_AI'
-get_thms(logic, theory_name)
+if __name__ == "__main__":
+    jar_path = "target/IsaREPL.jar"
+    port = 25556
+    jvm_process = run_jar_file(jar_path, port)
+
+    try:
+        isa_repl = isapy_repl(port)
+        test_extract_parent_thms(isa_repl)
+        print("test_extract_parent_thms passed")
+    finally:
+        jvm_process.terminate()
+        jvm_process.wait()

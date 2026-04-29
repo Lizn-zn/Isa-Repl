@@ -26,7 +26,7 @@ def split_result(result):
     return parts[0] == "True", parts[1]
 
 
-def test_extract_goals(isa_repl):
+def test_find_theorems(isa_repl):
     theory_file = os.path.abspath("python-test/Test.thy")
 
     ok, msg = split_result(isa_repl._initializeRepl(theory_file))
@@ -35,21 +35,16 @@ def test_extract_goals(isa_repl):
     ok, msg = split_result(isa_repl._compile())
     assert ok, msg
 
-    isa_repl._step(r"""
-      theorem example5: "\<not>(\<forall>(n::nat). f (f n) = n + 1987)"
-        proof
-          assume A: "\<forall> n. f (f n) = n + 1987"
-          have inj_f: "inj f"
-          proof (rule inj_onI)
-            fix m n
-            assume "f m = f n"
-            have "f (f m) = f (f n)"
-              using \<open>f m = f n\<close> by force
-            from A
-            have "f (f m) = m + 1987" and "f (f n) = n + 1987"
-              by auto
-    """)
-    print(isa_repl._proof_finished())
+    # Similar to: find_theorems "obj_at _ _" "set_thread_state"
+    # Here we use a HOL query that should reliably return matches.
+    query_patterns = ["(_::nat) <= _"]
+    raw = isa_repl._find_theorems(query_patterns)
+    ok, output = split_result(raw)
+
+    print("find_theorems raw output:\n", output)
+    assert ok, output
+    assert "find_theorems" in output
+    assert "theorem(s)" in output
 
 
 if __name__ == "__main__":
@@ -59,8 +54,8 @@ if __name__ == "__main__":
 
     try:
         isa_repl = isapy_repl(port)
-        test_extract_goals(isa_repl)
-        print("test_extract_goals passed")
+        test_find_theorems(isa_repl)
+        print("test_find_theorems passed")
     finally:
         jvm_process.terminate()
         jvm_process.wait()

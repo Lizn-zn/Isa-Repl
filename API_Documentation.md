@@ -129,6 +129,15 @@ Check current goal using nitpick.
 - Error: `"False<\\SEP>failed for check the goal by nitpick. Get msg: {error_message}"`
 - Timeout: `"False<\\SEP>failed for check the goal by nitpick. Get msg: {timeout_message}"`
 
+#### `_check_by_quickcheck() -> String`
+Check current goal using quickcheck.
+
+**Returns:**
+- Has counterexample: `"True<\\SEP>{message}"`
+- No counterexample: `"False<\\SEP>{message}"` (e.g., "Quickcheck found no counterexample — goal appears valid.")
+- Error: `"False<\\SEP>failed for check the goal by quickcheck. Get msg: {error_message}"`
+- Timeout: `"False<\\SEP>failed for check the goal by quickcheck. Get msg: {timeout_message}"`
+
 #### `_proof_finished() -> String`
 Check if proof is finished.
 
@@ -237,7 +246,29 @@ Extract hammer facts with theory names using filter and add/delete lists.
 - Success: `"True<\\SEP>{facts_content}"`
 - Failure: `"False<\\SEP>failed for extract facts. Get msg: {error_message}"`
 
-### 9. Theorem Management
+### 9. Theorem Search and Management
+
+#### `_find_theorems(queryPatterns: ArrayList[String]) -> String`
+Search the current theory for theorems matching the given query patterns (same syntax as the Isar `find_theorems` command).
+
+**Parameters:**
+- `queryPatterns` (ArrayList[String]): List of query patterns.
+
+**Returns:**
+- Success: `"True<\\SEP>{search_output}"`
+- Failure: `"False<\\SEP>failed for find_theorems. Get msg: {error_message}"`
+
+#### `_find_theorems(queryPatterns: ArrayList[String], limit: Int, removeDuplicates: Boolean) -> String`
+Same as above, with explicit result limit and duplicate-removal control.
+
+**Parameters:**
+- `queryPatterns` (ArrayList[String]): List of query patterns.
+- `limit` (Int): Maximum number of results to return.
+- `removeDuplicates` (Boolean): Whether to remove duplicate results.
+
+**Returns:**
+- Success: `"True<\\SEP>{search_output}"`
+- Failure: `"False<\\SEP>failed for find_theorems. Get msg: {error_message}"`
 
 #### `_extract_thms_defined_in_parent() -> String`
 Extract theorems defined in parent theory.
@@ -304,10 +335,10 @@ All methods use a unified error handling mechanism:
 ### Python Client Connection Example
 
 ```python
-from py4j.java_gateway import JavaGateway
+from py4j.java_gateway import GatewayParameters, JavaGateway
 
-# Connect to server
-gateway = JavaGateway(port=25333)
+# Connect to server (port must match the one passed when starting the JVM)
+gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25556, auto_convert=True))
 app = gateway.entry_point
 
 # Initialize REPL
@@ -329,8 +360,8 @@ gateway.shutdown()
 
 ## Notes
 
-1. Ensure `ISABELLE_HOME` environment variable is properly set
-2. Server runs on port 25333 by default, can be modified via command line arguments
-3. All string return values use `<\\SEP>` as separator
-4. Recommend calling `_exit()` method for cleanup after completion
-5. Some operations may take considerable time, recommend using timeout versions
+1. Ensure `ISABELLE_HOME` environment variable is properly set.
+2. The JVM server uses port 25333 when launched with no argument; pass a port as the first command-line argument to override (e.g., `java -jar target/IsaREPL.jar 25556`). The Python tests under `python-test/` use 25556.
+3. All string return values use `<\\SEP>` as separator.
+4. Recommend calling `_exit()` method for cleanup after completion.
+5. Some operations may take considerable time, recommend using timeout versions.

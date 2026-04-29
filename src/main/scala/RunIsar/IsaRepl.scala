@@ -143,7 +143,7 @@ class IsaREPL(
     compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
       """fn (int, tr, st) => let
         |  fun go_run (a, b, c) = Toplevel.command_exception a b c
-        |  in Timeout.apply (Time.fromSeconds 90) go_run (int, tr, st) end""".stripMargin
+        |  in Timeout.apply (Time.fromSeconds 30) go_run (int, tr, st) end""".stripMargin
     )
   val command_errors: MLFunction3[
     Boolean,
@@ -778,6 +778,18 @@ class IsaREPL(
          |""".stripMargin
     )
 
+  val parse_find_theorems: MLFunction4[ToplevelState, List[String], Int, Boolean, String] =
+    compileFunction[ToplevelState, List[String], Int, Boolean, String](
+      s"""fn (state, query_patterns, limit, rem_dups) =>
+         |    let
+         |      val opt_limit = if limit < 0 then NONE else SOME limit;
+         |      val output = $Auto_Isabelle.find_theorems state query_patterns opt_limit rem_dups;
+         |    in
+         |      output
+         |    end
+         |""".stripMargin
+    )
+
   var toplevel: ToplevelState = init_toplevel().force.retrieveNow
   if (debug) println("Checkpoint 12")
   def reset_map(): Unit = {
@@ -1234,6 +1246,16 @@ class IsaREPL(
         s"Unexpected Quickcheck result: $result"
     }
     (hasCounterexample, message)
+  }
+
+  def find_theorems(
+      query_patterns: List[String],
+      limit: Int = -1,
+      remove_duplicates: Boolean = true
+  ): String = {
+    val output =
+      parse_find_theorems(toplevel, query_patterns, limit, remove_duplicates).force.retrieveNow
+    output
   }
 
   def translate_to_smt(): String = {

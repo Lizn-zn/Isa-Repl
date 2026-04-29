@@ -1,50 +1,51 @@
 import os
 import re
+import subprocess
+import time
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
 
-# Connect to the JVM
-gateway = JavaGateway(gateway_parameters=GatewayParameters(port=25555, auto_convert=True))
-
-# Get the IsaREPL application
-isa_repl = gateway.entry_point
-
-# Initialize REPL with a theory file
-theory_file = os.path.abspath("/path/to/l4v/proof/invariant-abstract/Deterministic_AI.thy")
-
-isa_repl._initializeRepl(theory_file, "/path/to/l4v", "AInvs", ["/path/to/l4v"])
-
-with open(theory_file, "r", encoding="utf-8") as f:
-    content = f.read()
-
-# Compile the theory file
-target = "lemma sofl_test: \\<open>sint x + sint y = sint (x + y) \\<longleftrightarrow> drop_bit (size x - 1) ((x + y XOR x) AND (x + y XOR y)) = 0\\<close> for x y :: \\<open>'a::len word\\<close>"
-steps = isa_repl._parse_to_steps(content).split("<\\SEP>")
-# Add a proof step
-for i, step in enumerate(steps):
-    # print(i, step)
-    if "lemma no_children_empty_desc" in step:
-        target = step
-        break
+# Set L4V_PATH to your local l4v directory. See README for details.
+L4V_PATH = os.environ.get("L4V_PATH", "")
 
 
-def replaced_by_sorry(isar_commands: list[str]):
+def run_jar_file(jar_path, port):
+    env = os.environ.copy()
+    env["ISABELLE_HOME"] = os.path.expanduser("~/verification/isabelle/")
+    process = subprocess.Popen(["java", "-jar", jar_path, str(port)], env=env)
+    time.sleep(2)
+    return process
+
+
+def isapy_repl(port):
+    gateway = JavaGateway(
+        gateway_parameters=GatewayParameters(port=port, auto_convert=True)
+    )
+    return gateway.entry_point
+
+
+def split_result(result):
+    parts = result.split("<\\SEP>", 1)
+    if len(parts) != 2:
+        raise AssertionError(f"Malformed result: {result}")
+    return parts[0] == "True", parts[1]
+
+
+def replaced_by_sorry(isar_commands):
     keywords = [
         "apply", "supply", "subgoal", "using", "unfolding",
         "proof", "qed", "done",
         "{", "}", "next", "note",
         "let", "write", "fix", "assume", "then",
         "have", "show",
-        "fix", "assume", "then", "have", "show", "using", "unfolding",
-        "proof", "qed", "next", "note", "let", "write",
         "from", "with",
         "also", "finally", "moreover", "ultimately",
         "presume", "define", "consider", "obtain", "case",
         "typ", "term", "prop", "thm", "print_statement",
-        "apply", "apply_end", "supply", "subgoal", "defer", "prefer",
-        "back", "done", "oops", "hence", "thus", ".", "..", "and",
+        "apply_end", "defer", "prefer",
+        "back", "oops", "hence", "thus", ".", "..", "and",
         "include", "including", "is", "interpret",
-        "by"
+        "by",
     ]
     depth = 0
     in_notepad = False
@@ -52,8 +53,6 @@ def replaced_by_sorry(isar_commands: list[str]):
     replaced_commands = []
     i, length = 0, len(isar_commands)
     while i < length:
-        if i == 210:
-            pass
         if isar_commands[i].endswith("begin"):
             depth += 1
         if isar_commands[i].strip() == "end":
@@ -64,11 +63,10 @@ def replaced_by_sorry(isar_commands: list[str]):
             in_notepad = not in_notepad
             notepad_depth = depth
         if not in_notepad:
-            if any([re.split(r'[ ()]+', isar_commands[i].strip())[0] == keyword for keyword in keywords]):
-                to_be_replaced = []
+            if any(re.split(r"[ ()]+", isar_commands[i].strip())[0] == kw for kw in keywords):
                 while i < length and any(
-                        [re.split(r'[ ()\n]+', isar_commands[i].strip())[0] == keyword for keyword in keywords]):
-                    to_be_replaced.append(isar_commands[i])
+                    re.split(r"[ ()\n]+", isar_commands[i].strip())[0] == kw for kw in keywords
+                ):
                     i += 1
                 replaced_commands.append("sorry")
             else:
@@ -80,51 +78,67 @@ def replaced_by_sorry(isar_commands: list[str]):
     return replaced_commands
 
 
-def is_comment(isar_command: str):
+def is_comment(isar_command):
     stripped = isar_command.strip()
     return stripped.startswith("(*") and stripped.endswith("*)")
 
 
-def delete_comments(isar_commands: list[str]):
-    result = []
-    for command in isar_commands:
-        if is_comment(command):
-            continue
-        result.append(command)
-    return result
+def delete_comments(isar_commands):
+    return [c for c in isar_commands if not is_comment(c)]
 
 
-steps = delete_comments(steps)
-steps = replaced_by_sorry(steps)
+def test_hammer_facts_with_thy(isa_repl):
+    assert L4V_PATH, "L4V_PATH environment variable is not set"
 
-# all_steps_str = "\n".join(steps[1:])
-# print(isa_repl._step(all_steps_str))
+    theory_file = os.path.abspath(
+        os.path.join(L4V_PATH, "proof/invariant-abstract/Deterministic_AI.thy")
+    )
 
-# for i, step in enumerate(steps):
-#     print(i, step)
+    ok, msg = split_result(
+        isa_repl._initializeRepl(theory_file, L4V_PATH, "AInvs", [L4V_PATH])
+    )
+    assert ok, msg
 
-plain = False
+    with open(theory_file, "r", encoding="utf-8") as f:
+        content = f.read()
 
-if plain:
-    for i, step in enumerate(steps):
-        print(i, step, "\n", isa_repl._step(steps[i]))
-else:
-    i, unprocessed, attached_num = 1, '', 0
+    steps = isa_repl._parse_to_steps(content).split("<\\SEP>")
+    target = ""
+    for step in steps:
+        if "lemma no_children_empty_desc" in step:
+            target = step
+            break
+
+    steps = delete_comments(steps)
+    steps = replaced_by_sorry(steps)
+
+    i, unprocessed = 1, ""
     while i < len(steps):
         result = isa_repl._step(unprocessed + steps[i])
-        if target in unprocessed + steps[i]:
+        if target and target in unprocessed + steps[i]:
             print(isa_repl._mash_state_relearn())
             result = isa_repl._extract_hammer_facts_with_thy_names("mesh")
             result_lst = result.split("<\\SEP>")
             print(result_lst[:10])
             break
         if "False<\\SEP>" in result:
-            unprocessed += steps[i] + '\n'
-            attached_num += 1
+            unprocessed += steps[i] + "\n"
         else:
-            # print(i, unprocessed + steps[i], "\n", result)
-            unprocessed = ''
-            attached_num = 0
+            unprocessed = ""
         i += 1
 
-isa_repl._exit()
+    isa_repl._exit()
+
+
+if __name__ == "__main__":
+    jar_path = "target/IsaREPL.jar"
+    port = 25556
+    jvm_process = run_jar_file(jar_path, port)
+
+    try:
+        isa_repl = isapy_repl(port)
+        test_hammer_facts_with_thy(isa_repl)
+        print("test_hammer_facts_with_thy passed")
+    finally:
+        jvm_process.terminate()
+        jvm_process.wait()

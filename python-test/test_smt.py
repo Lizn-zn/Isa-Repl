@@ -1,64 +1,57 @@
+import os
 import subprocess
 import time
-import os
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
-### subprocess to run the jar file
+
 def run_jar_file(jar_path, port):
-    process = subprocess.Popen([
-        "java", "-jar", jar_path, str(port)
-    ])
-    # Give the server some time to start
+    env = os.environ.copy()
+    env["ISABELLE_HOME"] = os.path.expanduser("~/verification/isabelle/")
+    process = subprocess.Popen(["java", "-jar", jar_path, str(port)], env=env)
     time.sleep(2)
     return process
 
 
-### test the isapy connection
 def isapy_repl(port):
-    gateway = JavaGateway(gateway_parameters=GatewayParameters(port=port))
-    isa_repl = gateway.entry_point
-    return isa_repl
+    gateway = JavaGateway(
+        gateway_parameters=GatewayParameters(port=port, auto_convert=True)
+    )
+    return gateway.entry_point
 
 
-def test_proof(isa_repl):
-    # Initialize REPL with a theory file
-    theory_file = os.path.abspath("../python-test/Test.thy")
-    isa_repl._initializeRepl(theory_file)
-            
-    # Compile the theory file
-    result = isa_repl._compile()
-    print("Compilation result:", result)
-            
-    # Create and prove a theorem
+def split_result(result):
+    parts = result.split("<\\SEP>", 1)
+    if len(parts) != 2:
+        raise AssertionError(f"Malformed result: {result}")
+    return parts[0] == "True", parts[1]
+
+
+def test_smt(isa_repl):
+    theory_file = os.path.abspath("python-test/Test.thy")
+
+    ok, msg = split_result(isa_repl._initializeRepl(theory_file))
+    assert ok, msg
+
+    ok, msg = split_result(isa_repl._compile())
+    assert ok, msg
+
     theorem = "lemma fixes x :: int shows \"x ^ 3 = x * x * x\" \n proof- \n"
-    result = isa_repl._step(theorem)
-    print("Theorem declaration result:", result)
-            
-    # Add a proof step
+    ok, msg = split_result(isa_repl._step(theorem))
+    assert ok, msg
+
     result = isa_repl._translate_to_smt()
     print("SMT translation result:", result)
 
 
-"""
-Test the IsaREPL server with a sub-repl connection
-    using subprocess to open the JVM server
-    and py4j to connect to the server
-"""
 if __name__ == "__main__":
-    print(__file__)
-    jar_path = "../target/IsaREPL.jar"
-    port = 25555
-    
-    # Start the JVM server
+    jar_path = "target/IsaREPL.jar"
+    port = 25556
     jvm_process = run_jar_file(jar_path, port)
-        
-    # Connect to the server
-    isa_repl = isapy_repl(port)
-        
-    # Your test code here
-    print("Successfully connected to IsaREPL server")
 
-    test_proof(isa_repl)
-
-    jvm_process.terminate()
-    jvm_process.wait()  # Wait for process to terminate
+    try:
+        isa_repl = isapy_repl(port)
+        test_smt(isa_repl)
+        print("test_smt passed")
+    finally:
+        jvm_process.terminate()
+        jvm_process.wait()
