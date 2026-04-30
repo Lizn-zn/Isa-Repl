@@ -1,4 +1,0 @@
-[submodule "scala-isabelle"]
-	path = scala-isabelle
-	url = git@github.com:Lizn-zn/scala-isabelle.git
-	branch = master
