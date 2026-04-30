@@ -1,33 +1,31 @@
-## Main process
-Isa-Repl wraps a Python REPL for Isabelle based on the [py4j] and [scala-isabelle]
+**Isa-Repl** wraps a Python REPL for Isabelle based on the [py4j](https://www.py4j.org/) and [scala-isabelle](https://github.com/dominique-unruh/scala-isabelle)
+
+## Prerequisites
+- [Isabelle2024](https://isabelle.in.tum.de/website-Isabelle2024/index.html) installed. Either set `ISABELLE_HOME` to the installation path or ensure the `isabelle` executable is on your `PATH`.
+- Java 17 or higher.
 
 ## Installation
-#### 1. Clone the repository
-```
-git clone https://github.com/Lizn-zn/Isa-Repl
-```
+Pre-compiled `IsaREPL.jar` is available on the [releases page](../../releases).
 
-#### 2. Path configuration
-```
-export ISABELLE_HOME=/path/to/Isabelle2024/
-export ISA_REPL_PATH=/path/to/Isa-Repl/target/IsaREPL.jar
-```
+To build from source, see [Compile from source](#compile-from-source) below.
 
 ## Usage
-
+Suppose env `ISA_REPL_PATH` is set to the path of the compiled JAR:
 ```python
 import os
 import subprocess
 import time
 from py4j.java_gateway import JavaGateway, GatewayParameters
 
+ISAREPL_PORT = 25556
+
 # Start the JVM server
-process = subprocess.Popen(["java", "-jar", os.getenv("ISA_REPL_PATH"), "25556"])
+process = subprocess.Popen(["java", "-jar", os.getenv("ISA_REPL_PATH"), str(ISAREPL_PORT)])
 time.sleep(2)
 
 # Connect to the JVM
 gateway = JavaGateway(
-    gateway_parameters=GatewayParameters(port=25556, auto_convert=True)
+    gateway_parameters=GatewayParameters(port=ISAREPL_PORT, auto_convert=True)
 )
 isa_repl = gateway.entry_point
 
@@ -56,31 +54,33 @@ process.wait()
 ```
 
 
-## JAR Compilation
-The `scala-isabelle` library is fetched from Maven via `build.sbt`, so no local publishing is required.
+## Compile from source
 
-#### 1. Install [Isabelle], and set the environment variable `ISABELLE_HOME` to indicate the Isabelle installation.
+Make sure [sbt](https://www.scala-sbt.org/1.x/docs/Installing-sbt-on-Linux.html) and scala 2.13.14 is installed. Then just run:
 ```shell
-export ISABELLE_HOME=/path/to/Isabelle2024/
-```
-
-#### 2. Install [Scala](https://www.scala-sbt.org/1.x/docs/zh-cn/Installing-sbt-on-Linux.html). Run the following command to check whether the installation is successful.
-```shell
-./src/test/test.sh
-```
-
-#### 3. Compile and create a JAR file at `target/IsaREPL.jar` with all the dependencies included.
-```
 sbt assembly
 ```
+It will produce `target/IsaREPL.jar`
 
-## Running the Python tests
+## Run the integration tests
 
-Each test script in `python-test/` spawns its own JVM (via `subprocess`), runs the test, and terminates the JVM on exit. Run an individual test from the repo root after building the JAR:
+Tests use [pytest](https://docs.pytest.org/) and share a single JVM via a session-scoped fixture. Install the dependencies:
+
+```shell
+pip install pytest py4j
+```
+
+Build the JAR, then run tests from the repo root:
 
 ```shell
 sbt assembly
-python python-test/test_repl.py
+pytest --capture=no python-test/
+
+# a single file
+pytest --capture=no python-test/test_repl.py
+
+# a single test function
+pytest --capture=no python-test/test_repl.py::test_repl
 ```
 
 ### Tests that require seL4 l4v
@@ -88,10 +88,10 @@ python python-test/test_repl.py
 The following tests exercise Isabelle sessions from a local [seL4/l4v](https://github.com/seL4/l4v) checkout. Set `L4V_PATH` before running them:
 
 ```shell
-export L4V_PATH=/path/to/verification/l4v
+export L4V_PATH=/path/to/l4v
 ```
 
-Tests needing `L4V_PATH`:
+Tests needing `L4V_PATH` (marked with `@needs_l4v`):
 
 - `test_dependent_thms.py`
 - `test_dependent_thm_with_thy.py`
@@ -99,4 +99,4 @@ Tests needing `L4V_PATH`:
 - `test_hammer_facts_with_thy.py`
 - `test_parse_l4v_theory.py`
 
-If `L4V_PATH` is unset, these tests fail fast with an assertion.
+If `L4V_PATH` is unset, these tests are skipped automatically.
