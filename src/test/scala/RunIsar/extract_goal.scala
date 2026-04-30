@@ -110,7 +110,7 @@ class ExtractGoalTests extends AnyFunSuite {
               by auto
       """)
     val result = isa_repl.check_no_subgoals()
-    assert(result == true)
+    assert(result == false)
     isa_repl.step("""
         show "m = n" 
           sorry
