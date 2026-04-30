@@ -1,46 +1,12 @@
 import os
-import subprocess
 import tempfile
-import time
-from py4j.java_gateway import JavaGateway, GatewayParameters
+
+from lib import L4V_PATH, PORT, THEORY_TEMPLATE, get_repl, needs_l4v, split_result
 
 
-# Set L4V_PATH to your local l4v directory. See README for details.
-L4V_PATH = os.environ.get("L4V_PATH", "")
-
-
-def run_jar_file(jar_path, port):
-    env = os.environ.copy()
-    env["ISABELLE_HOME"] = os.path.expanduser("~/verification/isabelle/")
-    process = subprocess.Popen(["java", "-jar", jar_path, str(port)], env=env)
-    time.sleep(2)
-    return process
-
-
-def isapy_repl(port):
-    gateway = JavaGateway(
-        gateway_parameters=GatewayParameters(port=port, auto_convert=True)
-    )
-    return gateway.entry_point
-
-
-def split_result(result):
-    parts = result.split("<\\SEP>", 1)
-    if len(parts) != 2:
-        raise AssertionError(f"Malformed result: {result}")
-    return parts[0] == "True", parts[1]
-
-
-THEORY_TEMPLATE = """
-theory Test
-    imports {session}.{theory_name}
-begin
-"""
-
-
-def test_dependent_thm_with_thy(isa_repl):
-    assert L4V_PATH, "L4V_PATH environment variable is not set"
-
+@needs_l4v
+def test_dependent_thm_with_thy():
+    isa_repl = get_repl(PORT)
     session = "AInvs"
     theory_name = "KHeap_AI"
 
@@ -70,13 +36,10 @@ def test_dependent_thm_with_thy(isa_repl):
 
 
 if __name__ == "__main__":
-    jar_path = "target/IsaREPL.jar"
-    port = 25556
-    jvm_process = run_jar_file(jar_path, port)
-
+    from lib import run_jar_file
+    jvm_process = run_jar_file("target/IsaREPL.jar")
     try:
-        isa_repl = isapy_repl(port)
-        test_dependent_thm_with_thy(isa_repl)
+        test_dependent_thm_with_thy()
         print("test_dependent_thm_with_thy passed")
     finally:
         jvm_process.terminate()

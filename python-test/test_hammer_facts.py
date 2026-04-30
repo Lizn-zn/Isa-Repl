@@ -1,32 +1,10 @@
 import os
-import subprocess
-import time
-from py4j.java_gateway import JavaGateway, GatewayParameters
+
+from lib import PORT, get_repl, split_result
 
 
-def run_jar_file(jar_path, port):
-    env = os.environ.copy()
-    env["ISABELLE_HOME"] = os.path.expanduser("~/verification/isabelle/")
-    process = subprocess.Popen(["java", "-jar", jar_path, str(port)], env=env)
-    time.sleep(2)
-    return process
-
-
-def isapy_repl(port):
-    gateway = JavaGateway(
-        gateway_parameters=GatewayParameters(port=port, auto_convert=True)
-    )
-    return gateway.entry_point
-
-
-def split_result(result):
-    parts = result.split("<\\SEP>", 1)
-    if len(parts) != 2:
-        raise AssertionError(f"Malformed result: {result}")
-    return parts[0] == "True", parts[1]
-
-
-def test_hammer_facts(isa_repl):
+def test_hammer_facts():
+    isa_repl = get_repl(PORT)
     theory_file = os.path.abspath("python-test/Test.thy")
 
     ok, msg = split_result(isa_repl._initializeRepl(theory_file))
@@ -35,7 +13,7 @@ def test_hammer_facts(isa_repl):
     ok, msg = split_result(isa_repl._compile())
     assert ok, msg
 
-    theorem = "lemma fixes x :: int shows \"x ^ 3 = x * x * x\" \n proof- \n"
+    theorem = 'lemma fixes x :: int shows "x ^ 3 = x * x * x" \n proof- \n'
     ok, msg = split_result(isa_repl._step(theorem))
     assert ok, msg
 
@@ -48,13 +26,10 @@ def test_hammer_facts(isa_repl):
 
 
 if __name__ == "__main__":
-    jar_path = "target/IsaREPL.jar"
-    port = 25556
-    jvm_process = run_jar_file(jar_path, port)
-
+    from lib import run_jar_file
+    jvm_process = run_jar_file("target/IsaREPL.jar")
     try:
-        isa_repl = isapy_repl(port)
-        test_hammer_facts(isa_repl)
+        test_hammer_facts()
         print("test_hammer_facts passed")
     finally:
         jvm_process.terminate()
