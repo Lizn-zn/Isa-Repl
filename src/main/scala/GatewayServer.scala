@@ -5,40 +5,34 @@ import RunIsar.{IsaREPL, TempFileManager}
 import RunIsar.Exceptions.IsabelleMLException
 import scala.jdk.CollectionConverters._
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, Path}
 import java.util
 import java.util.concurrent.TimeoutException
 
 class IsaReplApplication {
-  val isabelleHome: String = sys.env.getOrElse(
-    "ISABELLE_HOME",
-    throw new Exception("ISABELLE_HOME not set")
-  )
-  val workingDirectory: String = {
-    val path = Paths.get("/tmp/IsaREPL/")
-    if (!Files.exists(path)) {
-      Files.createDirectories(path)
-    }
-    path.toAbsolutePath.toString
-  }
+  var isabelleHome: Option[Path] = IsaREPL.resolveIsabelleHome()
+  val workingDirectory: Path = Files.createTempDirectory("IsaREPL")
 
   private var repl: IsaREPL = _
 
+  def _setIsabelleHome(isabelleHome: String): Unit = {
+    if (isabelleHome != null && isabelleHome.nonEmpty) {
+      this.isabelleHome = Some(Path.of(isabelleHome))
+    } else {
+      throw new IllegalArgumentException(
+        "Isabelle home path cannot be null or empty"
+      )
+    }
+  }
+
   def _initializeRepl(pathToThy: String): String = {
-    val result = 
-      try {
-        repl = new IsaREPL(
-          isabelle_home = isabelleHome,
-            path_to_thy = pathToThy,
-            working_directory = workingDirectory
-          )
-          "True" + "<\\SEP>" + "initialize successfully"
-      } catch {
-        case e: Exception =>
-          println(s"Error during initialization: ${e.getMessage}")
-          "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
-      }
-    result
+    // This is kept since scala default parameters cannot be called from python through py4j.
+    _initializeRepl(
+      pathToThy=pathToThy, 
+      workingDirectory=this.workingDirectory.toString, 
+      session="HOL", 
+      sessionRoots=new util.ArrayList[String]() // empty so that no ROOT file is needed.
+    )
   }
 
   def _initializeRepl(
@@ -49,13 +43,20 @@ class IsaReplApplication {
   ): String = {
     val result = 
       try {
-        repl = new IsaREPL(
-          isabelle_home = isabelleHome,
-          path_to_thy = pathToThy,
-          working_directory = workingDirectory,
-          session = session,
-          session_roots = sessionRoots.asScala.toList
-        )
+        isabelleHome match {
+          case None =>
+            throw new IllegalStateException(
+              "ISABELLE_HOME is not set and isabelle executable not found in PATH"
+            )
+          case Some(home) =>
+            repl = new IsaREPL(
+              isabelle_home = home,
+              path_to_thy = pathToThy,
+              working_directory = Path.of(workingDirectory),
+              session = session,
+              session_roots = sessionRoots.asScala.toList
+            )
+        }
         "True" + "<\\SEP>" + "initialize successfully"
       } catch {
         case e: Exception =>
@@ -112,7 +113,7 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + repl.step(command)
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed applying command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -123,9 +124,9 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + repl.step_with_30s(command)
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
         case e: TimeoutException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -136,7 +137,7 @@ class IsaReplApplication {
         "True" + "<\\SEP>" + repl.step_without_timeout(command)
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }

@@ -38,15 +38,16 @@ For TheoryManager
  */
 
 class TheoryManager(
-    val isabelle_home: String,
+    val isabelle_home: Path,
     val path_to_thy: String,
-    val working_directory: String,
-    val logic: String,
+    val working_directory: Path,
+    val session: String,
     val sessionRoots: List[String],
     implicit val isabelle: Isabelle,
     val debug: Boolean = false
 ) {
-  if (working_directory.contains(isabelle_home)) {
+
+  if (working_directory.startsWith(isabelle_home)) {
     throw new Exception(
       "working_directory should not be set in the same directory as isabelleHome"
     )
@@ -107,59 +108,22 @@ class TheoryManager(
   // starter_string is for example "theory Test imports Main HOL.Real begin"
   val starter_string: String = getStarterString.trim.replaceAll("\n", " ").trim
   val theoryStarter: TheoryManager.Text =
-    TheoryManager.Text(starter_string, Path.of(working_directory).resolve(""))
+    TheoryManager.Text(starter_string, working_directory.resolve(""))
 
-  // Find out what to import from the current directory
-  def getListOfTheoryFiles(dir: File): List[File] = {
-    if (dir.exists && dir.isDirectory) {
-      var listOfFilesBuffer: ListBuffer[File] = new ListBuffer[File]
-      for (f <- dir.listFiles()) {
-        if (f.isDirectory) {
-          val excludedDirs = Seq("AARCH64", "ARM_HYP", "RISCV64", "X64")
-          if (!excludedDirs.exists(f.getName.contains)) {
-            listOfFilesBuffer = listOfFilesBuffer ++ getListOfTheoryFiles(f)
-          }
-        } else if (f.toString.endsWith(".thy")) {
-          listOfFilesBuffer += f
-        }
-      }
-      listOfFilesBuffer.toList
-    } else {
-      List[File]()
-    }
-  }
-
-  def sanitiseInDirectoryName(fileName: String): String = {
-    fileName.replace("\"", "").split("/").last.split(".thy").head
-  }
-  if (debug) println("Checkpoint 8: Figure out imports")
-  // Figure out what theories to import
-  // available_files lists all files in working_directory
-  val available_files: List[File] = getListOfTheoryFiles(
-    new File(working_directory)
-  )
-  var available_imports_buffer: ListBuffer[String] = new ListBuffer[String]
-  for (file_name <- available_files) {
-    if (file_name.getName().endsWith(".thy")) {
-      available_imports_buffer =
-        available_imports_buffer += file_name.getName().split(".thy")(0)
-    }
-  }
-  var available_imports: Set[String] = available_imports_buffer.toSet
-  // theoryNames list all theory to be imported e.g., List(Main, HOL.Real)
-  val theoryNames: List[String] = starter_string
-    .split("imports")(1)
-    .split("begin")(0)
-    .split(" ")
-    .map(_.trim)
-    .filter(_.nonEmpty)
-    .toList
-  var importMap: Map[String, String] = Map()
-  for (theory_dir <- theoryNames) {
-    val sanitisedName = sanitiseInDirectoryName(theory_dir)
-    if (available_imports(sanitisedName)) {
-      importMap += (theory_dir.replace("\"", "") -> sanitisedName)
-    }
+  /** Normalizes an import pattern string by removing surrounding quotes (if
+    * present), extracting the theory name if it is a path.
+    *
+    * @param import_string
+    *   The import string, possibly quoted and containing a file path.
+    * @return
+    *   The normalized import pattern, which is either the theory name or a
+    *   'SessionA.TheoryB' format.
+    */
+  def normalizeImportPattern(import_string: String): String = {
+    val p = if (import_string.startsWith("\"") && import_string.endsWith("\"")) {
+      import_string.substring(1, import_string.length - 1)
+    } else import_string
+    p.split("/").last.stripSuffix(".thy")
   }
 
   def getTheorySource(name: String): Source = Heap(name)
@@ -186,10 +150,15 @@ class TheoryManager(
     if (debug) println("Checkpoint 9_3")
     val registers: ListBuffer[String] = new ListBuffer[String]()
     if (debug) println("Checkpoint 9_4")
-    for (theory_name <- header.imports) {
-      if (importMap.contains(theory_name)) {
-        registers += s"${logic}.${importMap(theory_name)}"
-      } else registers += theory_name
+    for (theory_name <- header.imports.map(normalizeImportPattern)) {
+      // If n is not of the form "Main", "Pure" or "A.B", prepend the session name
+      if (
+        theory_name == "Main" || theory_name == "Pure" || theory_name.contains(".")
+      ) {
+        registers += theory_name
+      } else {
+        registers += s"$session.$theory_name"
+      }
     }
     if (debug) println("Checkpoint 9_5")
     try {

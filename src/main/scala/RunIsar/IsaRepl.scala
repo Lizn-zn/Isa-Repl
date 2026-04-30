@@ -1,6 +1,6 @@
 package RunIsar
 
-import java.nio.file.{Path, Paths}
+import java.nio.file.{Files, Path, Paths}
 import scala.collection.JavaConverters._
 import util.control.Breaks
 import scala.collection.mutable.ListBuffer
@@ -14,8 +14,7 @@ import scala.concurrent.{
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
 import sys.process._
-import _root_.java.nio.file.{Files, Path}
-import _root_.java.io.File
+import java.io.File
 
 import de.unruh.isabelle.control.{Isabelle, IsabelleMLException}
 import de.unruh.isabelle.mlvalue.{
@@ -42,6 +41,7 @@ import de.unruh.isabelle.pure.{
   TheoryHeader,
   ToplevelState
 }
+import de.unruh.isabelle.misc.Symbols
 
 // import RunIsar.TheoryManager
 import RunIsar.TheoryManager.{Ops, Source, Text}
@@ -75,21 +75,22 @@ object ProofContext extends AdHocConverter("Proof_Context.T")
   */
 //noinspection TypeAnnotation,ScalaUnusedSymbol
 class IsaREPL(
-    var isabelle_home: String,
+    var isabelle_home: Path,
     var path_to_thy: String,
-    var working_directory: String,
+    var working_directory: Path,
     var session: String = "HOL",
     var session_roots: List[String] = Nil,
     var debug: Boolean = false
 ) {
+  import IsaREPL._
   if (debug) println("Checkpoint 1: Isabelle setup")
   // Prepare setup config and the implicit Isabelle context
   var currentTheoryName: String =
-    path_to_thy.split("/").last.replace(".thy", "")
-  val isabelleHome: Path = Paths.get(isabelle_home)
+    Path.of(path_to_thy).getFileName.toString.replace(".thy", "")
+  val isabelleHome: Path = isabelle_home
   val setup: Isabelle.Setup = Isabelle.Setup(
     isabelleHome = isabelleHome,
-    workingDirectory = Path.of(working_directory),
+    workingDirectory = working_directory,
     logic = session,
     sessionRoots = session_roots.map(s => Path.of(s))
   )
@@ -581,7 +582,7 @@ class IsaREPL(
     isabelle_home = isabelle_home,
     path_to_thy = path_to_thy,
     working_directory = working_directory,
-    logic = session,
+    session = session,
     sessionRoots = session_roots,
     isabelle = isabelle,
     debug = debug
@@ -655,10 +656,26 @@ class IsaREPL(
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Commands")
   val Sledgehammer_Prover: String =
     thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
-  // prove_with_Sledgehammer is mostly identical to check_with_Sledgehammer except for that when the returned Boolean is true, it will
-  // also return a non-empty list of Strings, each of which contains executable commands to close the top subgoal. We might need to chop part of
-  // the string to get the actual tactic. For example, one of the string may look like "Try this: by blast (0.5 ms)".
+
   if (debug) println("Checkpoint 11")
+
+  /** normal_with_Sledgehammer calls sledgehammer to prove the top goal with
+    * premise modifications.
+    * @param state
+    *   the current Isabelle state
+    * @param thy
+    *   the current Isabelle theory
+    * @param adds
+    *   the list of premises to be added
+    * @param dels
+    *   the list of premises to be deleted
+    * @return
+    *   a pair of a Boolean and a pair of a String and a list of Strings The
+    *   Boolean is true if the top goal is proved. The String is sledgehammer's
+    *   output containing the tactic e.g. "Try this: by blast (0.5 ms)". The
+    *   list of Strings is the list of executable commands to close the top
+    *   subgoal.
+    */
   val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
     String
   ], List[String], (Boolean, (String, List[String]))] =
@@ -1048,10 +1065,10 @@ class IsaREPL(
   ): String = {
     // Normalize the target string by removing extra whitespace and newlines
     val sanitised_isar_string =
-      isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      isar_string.trim.replaceAll("\\s+", " ")
     // Get current transition and its text from the stored transitions
     val (transition, text) = transitions_and_texts(frontier_proceeding_index)
-    val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+    val sanitised_text = text.trim.replaceAll("\\s+", " ")
     if (sanitised_text.trim.isEmpty) {
       // Skip empty transitions and continue recursively
       frontier_proceeding_index += 1
@@ -1074,11 +1091,11 @@ class IsaREPL(
   var accumulative_index: Int = 0
   def accumulative_step_before_theorem_starts(theorem_name: String): Unit = {
     val sanitised_theorem_name =
-      theorem_name.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      theorem_name.trim.replaceAll("\\s+", " ")
     var found_theorem: Boolean = false
     while (!found_theorem) {
       val (transition, text) = transitions_and_texts(accumulative_index)
-      val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      val sanitised_text = text.trim.replaceAll("\\s+", " ")
       if (sanitised_text == sanitised_theorem_name) {
         found_theorem = true
       } else {
@@ -1092,7 +1109,7 @@ class IsaREPL(
     var proof_finished: Boolean = false
     while (!proof_finished) {
       val (transition, text) = transitions_and_texts(accumulative_index)
-      val sanitised_text = text.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      val sanitised_text = text.trim.replaceAll("\\s+", " ")
       if (sanitised_text.isEmpty) {
         accumulative_index += 1
       } else {
@@ -1294,7 +1311,7 @@ class IsaREPL(
    */
   def parse_to_steps(isar_string: String): String = {
     val isar_string_trim =
-      isar_string.trim.replaceAll("\n", " ").replaceAll(" +", " ")
+      isar_string.trim.replaceAll("\\s+", " ")
     var steps: String = ""
     var stateString: String = ""
     for (
@@ -1431,4 +1448,24 @@ class IsaREPL(
 
   def get_num_of_threads: Int =
     num_of_threads().force.retrieveNow
+}
+
+object IsaREPL {
+  def resolveIsabelleHome(): Option[Path] = {
+    sys.env.get("ISABELLE_HOME").map(Path.of(_)).orElse {
+      sys.env.get("PATH").flatMap { path =>
+        path.split(File.pathSeparator).iterator
+          .map(dir => Path.of(dir, "isabelle"))
+          .find(Files.isExecutable(_))
+          .map(_.getParent().getParent())
+      }
+    }
+  }
+
+  def isabelle2unicode(str: String): String = {
+    Symbols.symbolsToUnicode(str)
+  }
+  def unicode2isabelle(str: String): String = {
+    Symbols.unicodeToSymbols(str)
+  }
 }

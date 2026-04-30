@@ -1,7 +1,7 @@
 package RunIsar
 
 import org.scalatest.funsuite.AnyFunSuite
-import java.nio.file.Paths
+import java.nio.file.{Path, Paths}
 import RunIsar.IsaREPL
 
 class ParserTests extends AnyFunSuite {
@@ -10,12 +10,12 @@ class ParserTests extends AnyFunSuite {
     "ISABELLE_HOME",
     throw new Exception("ISABELLE_HOME not set")
   )
-  val isabelle_home: String = isabelleHome_str
+  val isabelle_home: Path = Path.of(isabelleHome_str)
 
   val path_to_thy: String =
     Paths.get("python-test/Test.thy").toAbsolutePath.toString
-  val working_directory: String =
-    Paths.get("python-test").toAbsolutePath.toString
+  val working_directory: Path =
+    Paths.get("python-test").toAbsolutePath
   val isa_repl = new IsaREPL(
     isabelle_home = isabelle_home,
     path_to_thy = path_to_thy,
@@ -40,7 +40,7 @@ class ParserTests extends AnyFunSuite {
           show ?thesis by (simp add: eq1 eq2)
         """
     val result1: String = isa_repl.parse_to_steps(theorem_string)
-    val steps: List[String] = result1.split("<\\\\SEP>").toList
+    val steps: List[String] = result1.split("<\\\\SEP>").toList // NOTE: the separator is "<\\\\SEP>" cos "\\S" is a special character in regex, so we need to escape it with another backslash. And in Scala string, we need to escape the backslash with another backslash, so we end up with "<\\\\SEP>"
     assert(
       steps == List(
         "",
