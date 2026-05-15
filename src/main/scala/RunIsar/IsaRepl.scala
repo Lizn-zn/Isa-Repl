@@ -1,5 +1,6 @@
 package RunIsar
 
+import java.lang.ref.Cleaner
 import java.nio.file.{Files, Path, Paths}
 import scala.collection.JavaConverters._
 import util.control.Breaks
@@ -96,6 +97,14 @@ class IsaREPL(
   )
   implicit val isabelle: Isabelle = new Isabelle(setup)
   implicit val ec: ExecutionContext = ExecutionContext.global
+
+  // GC safety net: if this IsaREPL is collected without calling exit_isabelle(),
+  // the Cleaner fires on `cleanupSentinel` and tears down Isabelle + temp dirs.
+  // `IsaReplCleanupAction` is defined in the companion object (static context) so
+  // it does NOT capture IsaREPL.this — only `isabelle`.
+  private val cleanupSentinel: AnyRef = new AnyRef
+  Cleaner.create().register(cleanupSentinel, new IsaReplCleanupAction(isabelle))
+
   if (debug) println("Checkpoint 2: Compile ML functions")
   // Load Auto_Isabelle theory from the correct path
   val tempDir = createTempDir("isar_temp")
@@ -1394,10 +1403,7 @@ class IsaREPL(
   }
 
   def exit_isabelle(): String = {
-    // remove temp directory
-    cleanupAll()
-    // exit isabelle
-    isabelle.destroy()
+    IsaREPL.do_clean(isabelle)
     "Destroyed"
   }
 
@@ -1451,6 +1457,28 @@ class IsaREPL(
 }
 
 object IsaREPL {
+
+  /** Tears down temp dirs and the Isabelle process. Single entry point shared by
+    * GC-triggered cleanup (`IsaReplCleanupAction`) and explicit `exit_isabelle()`.
+    */
+  private def do_clean(isabelle: Isabelle): Unit = {
+    try cleanupAll()
+    catch { case _: Throwable => }
+    try isabelle.destroy()
+    catch { case _: Throwable => }
+  }
+
+  /** Cleaner action that calls [[do_clean]] when the owning IsaREPL instance is
+    * garbage-collected without an explicit [[IsaREPL.exit_isabelle]] call.
+    *
+    * Defined in the companion object (static context) to avoid capturing
+    * `IsaREPL.this` via Scala's `$outer` — if the Cleaner action referenced
+    * the instance, the Cleaner would never fire.
+    */
+  private final class IsaReplCleanupAction(isabelle: Isabelle) extends Runnable {
+    override def run(): Unit = do_clean(isabelle)
+  }
+
   def resolveIsabelleHome(): Option[Path] = {
     sys.env.get("ISABELLE_HOME").map(Path.of(_)).orElse {
       sys.env.get("PATH").flatMap { path =>
