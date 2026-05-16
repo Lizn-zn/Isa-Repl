@@ -44,8 +44,6 @@ import de.unruh.isabelle.pure.{
 }
 import de.unruh.isabelle.misc.Symbols
 
-// import RunIsar.TheoryManager
-import RunIsar.TheoryManager.{Ops, Source, Text}
 import RunIsar.TempFileManager.{createTempDir, copyResources, cleanupAll}
 import RunIsar.RunIsarMLException
 // Implicits
@@ -84,109 +82,215 @@ class IsaREPL(
     var debug: Boolean = false
 ) {
   import IsaREPL._
-  if (debug) println("Checkpoint 1: Isabelle setup")
-  // Prepare setup config and the implicit Isabelle context
-  var currentTheoryName: String =
-    Path.of(path_to_thy).getFileName.toString.replace(".thy", "")
-  val isabelleHome: Path = isabelle_home
-  val setup: Isabelle.Setup = Isabelle.Setup(
-    isabelleHome = isabelleHome,
-    workingDirectory = working_directory,
-    logic = session,
-    sessionRoots = session_roots.map(s => Path.of(s))
-  )
-  implicit val isabelle: Isabelle = new Isabelle(setup)
-  implicit val ec: ExecutionContext = ExecutionContext.global
 
-  // GC safety net: if this IsaREPL is collected without calling exit_isabelle(),
-  // the Cleaner fires on `cleanupSentinel` and tears down Isabelle + temp dirs.
-  // `IsaReplCleanupAction` is defined in the companion object (static context) so
-  // it does NOT capture IsaREPL.this — only `isabelle`.
-  private val cleanupSentinel: AnyRef = new AnyRef
-  Cleaner.create().register(cleanupSentinel, new IsaReplCleanupAction(isabelle))
+  // =========================================================================
+  // Layer 1: Isabelle session (survives thy switches)
+  // =========================================================================
 
-  if (debug) println("Checkpoint 2: Compile ML functions")
-  // Load Auto_Isabelle theory from the correct path
-  val tempDir = createTempDir("isar_temp")
-  copyResources("RunIsar/isabelle/AutoIsar", tempDir)
-  val autoIsaPath_tmp = new File(tempDir, "Auto_Isabelle.thy").getAbsolutePath
-  val autoIsaPath = Paths.get(autoIsaPath_tmp)
-  val thy0 = Theory(autoIsaPath)
-  val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
+  // Isabelle process
+  implicit private var isabelle: Isabelle = _
+  implicit private var ec: ExecutionContext = _
+  private var cleanupSentinel: AnyRef = _
 
-  // setting up SMT_translate
-  // val Skip_Proof: String = thy0.importMLStructureNow("Skip_Proof")
-  val SMT_Config: String = thy0.importMLStructureNow("SMT_Config")
-  val SMT_Normalize: String = thy0.importMLStructureNow("SMT_Normalize")
-  val SMT_Util: String = thy0.importMLStructureNow("SMT_Util")
-  val SMT_Translate: String = thy0.importMLStructureNow("SMT_Translate")
+  // Auto_Isabelle theory
+  private var thy0: Theory = _
+  var Auto_Isabelle: String = _
+  var SMT_Config: String = _
+  var SMT_Normalize: String = _
+  var SMT_Util: String = _
+  var SMT_Translate: String = _
 
-  // Compile useful ML functions
-  val num_of_processors: MLFunction0[Int] =
-    compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
-  val num_of_threads: MLFunction0[Int] =
-    compileFunction0[Int]("fn _ => Multithreading.max_threads ()")
-  // Compile useful ML functions
-  val script_thy: MLFunction2[String, Theory, Theory] =
-    compileFunction[String, Theory, Theory](
-      "fn (str,thy) => Thy_Info.script_thy Position.none str thy"
+  // ML functions — thy1-independent
+  var num_of_processors: MLFunction0[Int] = _
+  var num_of_threads: MLFunction0[Int] = _
+  var script_thy: MLFunction2[String, Theory, Theory] = _
+  var init_toplevel: MLFunction0[ToplevelState] = _
+  var is_proof: MLFunction[ToplevelState, Boolean] = _
+  var is_skipped_proof: MLFunction[ToplevelState, Boolean] = _
+  var proof_level: MLFunction[ToplevelState, Int] = _
+  var proof_of: MLFunction[ToplevelState, ProofState.T] = _
+  var command_exception: MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] = _
+  var command_exception_with_10s_timeout: MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] = _
+  var command_exception_with_30s_timeout: MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] = _
+  var command_errors: MLFunction3[Boolean, Transition.T, ToplevelState, (List[RuntimeError.T], Option[ToplevelState])] = _
+  var toplevel_end_theory: MLFunction[ToplevelState, Theory] = _
+  var theory_of_state: MLFunction[_, _] = _
+  var context_of_state: MLFunction[ToplevelState, Context] = _
+  var name_of_transition: MLFunction[Transition.T, String] = _
+  var parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] = _
+  var toplevel_string_of_state: MLFunction[ToplevelState, String] = _
+  var pretty_local_facts: MLFunction2[ToplevelState, Boolean, List[Pretty.T]] = _
+  var make_pretty_list_string_list: MLFunction[List[Pretty.T], List[String]] = _
+  var local_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] = _
+  var global_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] = _
+  var fact_definition: MLFunction2[ToplevelState, String, String] = _
+  var get_dependent_thms: MLFunction2[ToplevelState, String, List[String]] = _
+  var get_dependent_thms_with_thy_names: MLFunction2[ToplevelState, String, List[String]] = _
+  var get_used_consts: MLFunction2[ToplevelState, String, List[String]] = _
+  var locales_opened_for_state: MLFunction[ToplevelState, List[String]] = _
+  var parse_vars: MLFunction[ToplevelState, List[String]] = _
+  var parse_assms: MLFunction[ToplevelState, List[String]] = _
+  var parse_goal: MLFunction[ToplevelState, String] = _
+  var parse_no_subgoals: MLFunction[ToplevelState, Boolean] = _
+  var parse_num_subgoals: MLFunction[ToplevelState, Int] = _
+  var parse_to_smt: MLFunction[ToplevelState, String] = _
+  var parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[String], List[String], String] = _
+  var parse_hammer_facts_with_theory_names: MLFunction5[ToplevelState, Theory, String, List[String], List[String], String] = _
+  var mash_relearn: MLFunction2[ToplevelState, Theory, Unit] = _
+  var normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] = _
+  var normal_with_NitPick: MLFunction2[ToplevelState, Theory, String] = _
+  var normal_with_QuickCheck: MLFunction2[ToplevelState, Theory, String] = _
+  var parse_find_theorems: MLFunction4[ToplevelState, List[String], Int, Boolean, String] = _
+
+  // beginTheory support (moved from TheoryManager)
+  var header_read: MLFunction2[String, Position, TheoryHeader] = _
+  var begin_theory: MLFunction3[Path, TheoryHeader, List[Theory], Theory] = _
+
+  // =========================================================================
+  // Layer 2: Theory state (rebuilt when path_to_thy changes)
+  // =========================================================================
+
+  var currentTheoryName: String = _
+  private var fileContent: String = _
+  var fileContentCopy: String = _
+  var thy1: Theory = _
+  var thy_for_sledgehammer: Theory = _
+  var Sledgehammer: String = _
+  var Sledgehammer_Commands: String = _
+  var Sledgehammer_Prover: String = _
+  var normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[String], List[String], (Boolean, (String, List[String]))] = _
+  var transitions_and_texts: List[(Transition.T, String)] = _
+
+  // =========================================================================
+  // Layer 3: Runtime state (rebuilt on every reset)
+  // =========================================================================
+
+  var toplevel: ToplevelState = _
+  var top_level_state_map: Map[String, MLValue[ToplevelState]] = _
+  var frontier_proceeding_index: Int = _
+  var accumulative_index: Int = 0
+
+  // =========================================================================
+  // Constructor initialization
+  // =========================================================================
+
+  base_init(isabelle_home, working_directory, session, session_roots)
+  loadThy(path_to_thy)
+
+
+  // =========================================================================
+  // Initialization methods
+  // =========================================================================
+
+  /** Initialize Layer 1: Isabelle process + all thy1-independent ML functions. */
+  private def base_init(
+      isabelle_home: Path,
+      working_directory: Path,
+      session: String,
+      session_roots: List[String]
+  ): Unit = {
+    if (debug) println("Checkpoint 1: Isabelle setup")
+    // Prepare setup config and the implicit Isabelle context
+
+    if (working_directory.startsWith(isabelle_home))
+      throw new Exception(
+        "working_directory should not be set in the same directory as isabelleHome"
+      )
+
+    this.isabelle_home = isabelle_home
+    this.working_directory = working_directory
+    this.session = session
+    this.session_roots = session_roots
+
+    val setup: Isabelle.Setup = Isabelle.Setup(
+      isabelleHome = isabelle_home,
+      workingDirectory = working_directory,
+      logic = session,
+      sessionRoots = session_roots.map(s => Path.of(s))
     )
-  val init_toplevel: MLFunction0[ToplevelState] =
-    if (Version.from2023)
-      compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE")
-    else
-      compileFunction0[ToplevelState]("Toplevel.init_toplevel")
-  val is_proof: MLFunction[ToplevelState, Boolean] =
-    compileFunction[ToplevelState, Boolean]("Toplevel.is_proof")
-  val is_skipped_proof: MLFunction[ToplevelState, Boolean] =
-    compileFunction[ToplevelState, Boolean]("Toplevel.is_skipped_proof")
-  val proof_level: MLFunction[ToplevelState, Int] =
-    compileFunction[ToplevelState, Int]("Toplevel.level")
-  val proof_of: MLFunction[ToplevelState, ProofState.T] =
-    compileFunction[ToplevelState, ProofState.T]("Toplevel.proof_of")
-  val command_exception
-      : MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
-    compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
-      "fn (int, tr, st) => Toplevel.command_exception int tr st"
-    )
-  val command_exception_with_10s_timeout
-      : MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
-    compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
-      """fn (int, tr, st) => let
-        |  fun go_run (a, b, c) = Toplevel.command_exception a b c
-        |  in Timeout.apply (Time.fromSeconds 10) go_run (int, tr, st) end""".stripMargin
-    )
-  val command_exception_with_30s_timeout
-      : MLFunction3[Boolean, Transition.T, ToplevelState, ToplevelState] =
-    compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
-      """fn (int, tr, st) => let
-        |  fun go_run (a, b, c) = Toplevel.command_exception a b c
-        |  in Timeout.apply (Time.fromSeconds 30) go_run (int, tr, st) end""".stripMargin
-    )
-  val command_errors: MLFunction3[
-    Boolean,
-    Transition.T,
-    ToplevelState,
-    (List[RuntimeError.T], Option[ToplevelState])
-  ] = compileFunction[
-    Boolean,
-    Transition.T,
-    ToplevelState,
-    (List[RuntimeError.T], Option[ToplevelState])
-  ]("fn (int, tr, st) => Toplevel.command_errors int tr st")
-  val toplevel_end_theory: MLFunction[ToplevelState, Theory] =
-    compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
-  val theory_of_state: MLFunction[_, _] =
-    if (Version.from2023)
-      compileFunction[Theory, ToplevelState]("Toplevel.make_state o SOME")
-    else
-      compileFunction[ToplevelState, Theory]("Toplevel.theory_of")
-  val context_of_state: MLFunction[ToplevelState, Context] =
-    compileFunction[ToplevelState, Context]("Toplevel.context_of")
-  val name_of_transition: MLFunction[Transition.T, String] =
-    compileFunction[Transition.T, String]("Toplevel.name_of")
-  val parse_text: MLFunction2[Theory, String, List[(Transition.T, String)]] =
-    compileFunction[Theory, String, List[(Transition.T, String)]]("""fn (thy, text) => let
+    isabelle = new Isabelle(setup)
+    ec = ExecutionContext.global
+
+    // GC safety net: if this IsaREPL is collected without calling exit_isabelle(),
+    // the Cleaner fires on `cleanupSentinel` and tears down Isabelle + temp dirs.
+    // `IsaReplCleanupAction` is defined in the companion object (static context) so
+    // it does NOT capture IsaREPL.this — only `isabelle`.
+    cleanupSentinel = new AnyRef
+    Cleaner.create().register(cleanupSentinel, new IsaReplCleanupAction(isabelle))
+
+    if (debug) println("Checkpoint 2: Compile ML functions")
+    // Load Auto_Isabelle theory from the correct path
+    val tempDir = createTempDir("isar_temp")
+    copyResources("RunIsar/isabelle/AutoIsar", tempDir)
+    val autoIsaPath_tmp = new File(tempDir, "Auto_Isabelle.thy").getAbsolutePath
+    thy0 = Theory(Paths.get(autoIsaPath_tmp))
+    Auto_Isabelle = thy0.importMLStructureNow("Auto_Isabelle")
+
+    // setting up SMT_translate
+    // val Skip_Proof: String = thy0.importMLStructureNow("Skip_Proof")
+    SMT_Config = thy0.importMLStructureNow("SMT_Config")
+    SMT_Normalize = thy0.importMLStructureNow("SMT_Normalize")
+    SMT_Util = thy0.importMLStructureNow("SMT_Util")
+    SMT_Translate = thy0.importMLStructureNow("SMT_Translate")
+
+    // Compile useful ML functions
+    num_of_processors =
+      compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
+    num_of_threads =
+      compileFunction0[Int]("fn _ => Multithreading.max_threads ()")
+    // Compile useful ML functions
+    script_thy =
+      compileFunction[String, Theory, Theory](
+        "fn (str,thy) => Thy_Info.script_thy Position.none str thy"
+      )
+    init_toplevel =
+      if (Version.from2023)
+        compileFunction0[ToplevelState]("fn _ => Toplevel.make_state NONE")
+      else
+        compileFunction0[ToplevelState]("Toplevel.init_toplevel")
+    is_proof =
+      compileFunction[ToplevelState, Boolean]("Toplevel.is_proof")
+    is_skipped_proof =
+      compileFunction[ToplevelState, Boolean]("Toplevel.is_skipped_proof")
+    proof_level =
+      compileFunction[ToplevelState, Int]("Toplevel.level")
+    proof_of =
+      compileFunction[ToplevelState, ProofState.T]("Toplevel.proof_of")
+    command_exception =
+      compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
+        "fn (int, tr, st) => Toplevel.command_exception int tr st"
+      )
+    command_exception_with_10s_timeout =
+      compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
+        """fn (int, tr, st) => let
+          |  fun go_run (a, b, c) = Toplevel.command_exception a b c
+          |  in Timeout.apply (Time.fromSeconds 10) go_run (int, tr, st) end""".stripMargin
+      )
+    command_exception_with_30s_timeout =
+      compileFunction[Boolean, Transition.T, ToplevelState, ToplevelState](
+        """fn (int, tr, st) => let
+          |  fun go_run (a, b, c) = Toplevel.command_exception a b c
+          |  in Timeout.apply (Time.fromSeconds 30) go_run (int, tr, st) end""".stripMargin
+      )
+    command_errors = compileFunction[
+      Boolean,
+      Transition.T,
+      ToplevelState,
+      (List[RuntimeError.T], Option[ToplevelState])
+    ]("fn (int, tr, st) => Toplevel.command_errors int tr st")
+    toplevel_end_theory =
+      compileFunction[ToplevelState, Theory]("Toplevel.end_theory Position.none")
+    theory_of_state =
+      if (Version.from2023)
+        compileFunction[Theory, ToplevelState]("Toplevel.make_state o SOME")
+      else
+        compileFunction[ToplevelState, Theory]("Toplevel.theory_of")
+    context_of_state =
+      compileFunction[ToplevelState, Context]("Toplevel.context_of")
+    name_of_transition =
+      compileFunction[Transition.T, String]("Toplevel.name_of")
+    parse_text =
+      compileFunction[Theory, String, List[(Transition.T, String)]]("""fn (thy, text) => let
         |  val transitions = Outer_Syntax.parse_text thy (K thy) Position.start text
         |  fun addtext symbols [tr] =
         |        [(tr, implode symbols)]
@@ -195,82 +299,589 @@ class IsaREPL(
         |        val (this,rest) = Library.chop (Position.distance_of (Toplevel.pos_of tr, Toplevel.pos_of nextTr) |> Option.valOf) symbols
         |        in (tr, implode this) :: addtext rest (nextTr::trs) end
         |  in addtext (Symbol.explode text) transitions end""".stripMargin)
-  val toplevel_string_of_state: MLFunction[ToplevelState, String] =
-    compileFunction[ToplevelState, String](
-      "fn (s) => XML.content_of (YXML.parse_body (Toplevel.string_of_state s))"
+    toplevel_string_of_state =
+      compileFunction[ToplevelState, String](
+        "fn (s) => XML.content_of (YXML.parse_body (Toplevel.string_of_state s))"
+      )
+    pretty_local_facts =
+      compileFunction[ToplevelState, Boolean, List[Pretty.T]](
+        "fn (tls, b) => Proof_Context.pretty_local_facts b (Toplevel.context_of tls)"
+      )
+    make_pretty_list_string_list =
+      compileFunction[List[Pretty.T], List[String]](
+        "fn (pretty_list) => map Pretty.unformatted_string_of pretty_list"
+      )
+
+    local_facts_and_defs =
+      compileFunction[ToplevelState, List[(String, String)]](
+        """fn tls =>
+          |  let val ctxt = Toplevel.context_of tls;
+          |      val facts = Proof_Context.facts_of ctxt;
+          |      val props = map #1 (Facts.props facts);
+          |      val local_facts =
+          |        (if null props then [] else [("unnamed", props)]) @
+          |        Facts.dest_static true [Global_Theory.facts_of (Proof_Context.theory_of ctxt)] facts;
+          |      val thms = (
+          |           if null local_facts then []
+          |           else
+          |           (map (fn e => #2 (#2 e)) (sort_by (#1 o #2) (map (`(Proof_Context.pretty_fact ctxt)) local_facts))));
+          |      val condensed_thms = fold (fn x => fn y => (x @ y)) thms [];
+          |  in
+          |      map (fn thm => (
+          |            Thm.get_name_hint thm,
+          |            Pretty.unformatted_string_of
+          |          (Element.pretty_statement ctxt "" thm)
+          |         ))
+          |         condensed_thms
+          |  end""".stripMargin
+      )
+    global_facts_and_defs =
+      compileFunction[ToplevelState, List[(String, String)]](
+        """fn tls =>
+            | map (fn tup => (#1 tup, Pretty.unformatted_string_of (Element.pretty_statement (Toplevel.context_of tls) "test" (#2 tup))))
+            | (Global_Theory.all_thms_of (Proof_Context.theory_of (Toplevel.context_of tls)) false)
+            """.stripMargin
+      )
+    fact_definition =
+      compileFunction[ToplevelState, String, String](
+        """fn (tls, name) =>
+          | let val ctxt = Toplevel.context_of tls;
+          |     val thm = Global_Theory.get_thms (Proof_Context.theory_of ctxt) name;
+          | in
+          |     YXML.content_of (Pretty.unformatted_string_of (Element.pretty_statement ctxt "" (hd thm)))
+          | end""".stripMargin
+      )
+
+    get_dependent_thms =
+      compileFunction[ToplevelState, String, List[String]](
+        """fn (tls, name) =>
+          | let val thy = Toplevel.theory_of tls;
+          |     val thm = Global_Theory.get_thms thy name;
+          | in
+          |     map (fn x => (#1 (#2 x))) (Thm_Deps.thm_deps thy thm)
+          | end""".stripMargin
+      )
+    get_dependent_thms_with_thy_names =
+      compileFunction[ToplevelState, String, List[String]](
+        """fn (tls, name) =>
+          | let val thy = Toplevel.theory_of tls;
+          |     val thm = Global_Theory.get_thms thy name;
+          | in
+          |     map (fn x => String.concat [#theory_name (#1 x), "<\\INNER_SEP>", (#1 (#2 x))]) (Thm_Deps.thm_deps thy thm)
+          | end""".stripMargin
+      )
+    get_used_consts =
+      compileFunction[ToplevelState, String, List[String]](
+        """fn(tls, inner_syntax) =>
+          |let
+          |  val term_to_list = fn te =>
+          |  let
+          |     fun leaves (left $ right) = (leaves left) @ (leaves right)
+          |     |   leaves t = [t];
+          |     fun filter_out (Const ("_type_constraint_", _)) = false
+          |     | filter_out (Const _) = true
+          |     | filter_out _ = false;
+          |     val all_leaves = leaves te;
+          |     val filtered_leaves = filter filter_out all_leaves;
+          |     fun remove(_, []) = []
+          |       | remove(x, y::l) =
+          |         if x = y then
+          |           remove(x, l)
+          |         else
+          |           y::remove(x, l);
+          |      fun removeDup [] = []
+          |        | removeDup(x::l) = x::removeDup(remove(x, l));
+          |      fun string_of_term (Const (s, _)) = s
+          |        | string_of_term _ = "";
+          |  in
+          |      removeDup (map string_of_term filtered_leaves)
+          |  end;
+          |
+          |  val type_to_list = fn ty =>
+          |  let
+          |    fun type_t (Type ty) = [#1 ty] @ (flat (map type_t (#2 ty)))
+          |    | type_t (TFree _) = []
+          |    | type_t (TVar _) = [];
+          |    fun filter_out_universal_type_symbols symbol =
+          |  case symbol of
+          |    "fun" => false
+          |    | "prop" => false
+          |    | "itself" => false
+          |    | "dummy" => false
+          |    | "proof" => false
+          |    | "Pure.proof" => false
+          |    | _ => true;
+          |  in
+          |    filter filter_out_universal_type_symbols (type_t ty)
+          |  end;
+          |  val ctxt = Toplevel.context_of tls;
+          |  val flex = fn str =>
+          |   (type_to_list (Syntax.parse_typ ctxt str))
+          |   handle _ => (term_to_list (Syntax.parse_term ctxt str));
+          |in
+          |  flex inner_syntax
+          |end""".stripMargin
+      )
+    // Nasty locales
+    locales_opened_for_state =
+      compileFunction[ToplevelState, List[String]](
+        """fn (tls) => Locale.get_locales (Toplevel.theory_of tls)""".stripMargin
+      )
+
+    /** Extracts the current variables, assumptions and conclusion from the proof
+      * state.
+      *
+      * This function takes a ToplevelState and returns a tuple containing:
+      *   - A list of strings representing the current assumptions (local facts)
+      *   - A string representing the current proof goal (conclusion)
+      *
+      * The output is formatted as human-readable text, with XML markup removed.
+      */
+    parse_vars =
+      compileFunction[ToplevelState, List[String]](
+        s"""fn (toplevel_state) =>
+          |  let
+          |    val p_state = Toplevel.proof_of toplevel_state;
+          |    val ctxt = Proof.context_of p_state;
+          |    val {context = _, facts, goal} = Proof.goal p_state;
+          |
+          |  (* Get all assumptions from the context *)
+          |  val assumptions = Facts.props (Proof_Context.facts_of ctxt) |> map #1;
+          |  val props = map Thm.prop_of assumptions;
+          |
+          |  (* Helper functions for variable processing *)
+          |  fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
+          |
+          |  fun ins_entry (x, y) =
+          |    AList.default (op =) (x, []) #> AList.map_entry (op =) x (insert (op =) y);
+          |
+          |  (* Collect variables from terms *)
+          |  val add_vars = Term.fold_aterms
+          |    (fn Free (x, T) => ins_entry (T, (x, ~1))
+          |     | Var (xi, T) => ins_entry (T, xi)
+          |     | _ => I);
+          |
+          |  fun vars_of t = sort_idxs (add_vars t []);
+          |
+          |  (* Pretty-printing functions *)
+          |  val prt_term = singleton (Syntax.uncheck_terms ctxt)
+          |    #> Type_Annotation.ignore_free_types
+          |    #> Syntax.string_of_term ctxt;
+          |
+          |  fun prt_var (x, ~1) = prt_term (Syntax.free x)
+          |    | prt_var xi = prt_term (Syntax.var xi);
+          |
+          |  val prt_typ = Syntax.string_of_typ ctxt;
+          |
+          |  (* Format variable declarations *)
+          |  fun prt_all (ty, vars) =
+          |    let
+          |      val ty_str = prt_typ ty;
+          |      fun print_var (name, idx) = prt_var (name, idx) ^ " :: " ^ ty_str
+          |    in
+          |      map print_var vars
+          |    end;
+          |
+          |  (* Process all propositions to extract variables *)
+          |  val all_vars = maps vars_of props;
+          |  val var_decls = maps prt_all all_vars;
+          |
+          |  (* Final result with duplicates removed *)
+          |  val res = var_decls
+          |    |> map $Auto_Isabelle.clean_theorem_text
+          |    |> distinct (op =);
+          |  in
+          |    res
+          |  end""".stripMargin
+      )
+
+    parse_assms =
+      compileFunction[ToplevelState, List[String]](
+        s"""fn (toplevel_state) =>
+          | let
+          |     (* Extract proof state and context *)
+          |     val proof_state = Toplevel.proof_of toplevel_state;
+          |     val proof_context = Proof.context_of proof_state;
+          |
+          |     (* Extract and format assumptions *)
+          |     val assumptions =
+          |         Facts.props (Proof_Context.facts_of proof_context)
+          |         |> map #1
+          |         |> map (Thm.string_of_thm proof_context);
+          | in
+          |     map $Auto_Isabelle.clean_theorem_text assumptions
+          | end""".stripMargin
+      )
+
+    parse_goal =
+      compileFunction[ToplevelState, String](
+        s"""fn (toplevel_state) =>
+          | let
+          |     (* Extract proof state and context *)
+          |     val proof_state = Toplevel.proof_of toplevel_state;
+          |     val proof_context = Proof.context_of proof_state;
+          |     val {context = _, facts = _, goal} = Proof.goal proof_state;
+          |
+          |     (* Extract and format conclusion *)
+          |     val conclusion =
+          |       if not (Proof.goal_finished proof_state) then
+          |         let
+          |           val ({context = ctxt, prems = _, concl, ...}, _) = Subgoal.focus proof_context 1 NONE goal
+          |       in
+          |         Variable.revert_fixed ctxt (Syntax.string_of_term ctxt (Thm.term_of concl))
+          |       end
+          |       else
+          |         ""
+          | in
+          |     $Auto_Isabelle.clean_theorem_text conclusion
+          | end""".stripMargin
+      )
+
+    parse_no_subgoals =
+      compileFunction[ToplevelState, Boolean](
+        """fn (toplevel_state) =>
+          | let
+          |   val proof_state = Toplevel.proof_of toplevel_state;
+          |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
+          |   val result = Thm.no_prems goal;
+          | in
+          |   result
+          | end""".stripMargin
+      )
+
+    parse_num_subgoals =
+      compileFunction[ToplevelState, Int](
+        """fn (toplevel_state) =>
+          | let
+          |   val proof_state = Toplevel.proof_of toplevel_state;
+          |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
+          |   val result = Thm.nprems_of goal;
+          | in
+          |   result
+          | end""".stripMargin
+      )
+
+    parse_to_smt =
+      compileFunction[ToplevelState, String](
+        s""" fn (state) =>
+              |    let
+              |       val p_state = Toplevel.proof_of state;
+              |       val ctxt = Proof.context_of p_state;
+              |       val {context = _, facts, goal} = Proof.goal p_state;
+              |       val ({context = ctxt, prems, concl, ...}, _) = Subgoal.focus ctxt 1 NONE goal
+              |
+              |       val facts = Proof_Context.facts_of ctxt;
+              |       val local_facts = map #1 (Facts.props facts);
+              |
+              |       val not_const = Syntax.read_term ctxt "Not";
+              |       val not_ct = Thm.cterm_of ctxt not_const;
+              |       fun negate ct = Thm.dest_comb ct ||> Thm.apply not_ct |-> Thm.apply;
+              |       val cprop = negate (Thm.rhs_of ($SMT_Normalize.atomize_conv ctxt concl));
+              |       val conjecture = Thm.assume cprop;
+              |
+              |       val options = $SMT_Config.solver_options_of ctxt;
+              |       val comments = [space_implode " " options];
+              |       val has_topsort = Term.exists_type (Term.exists_subtype (fn
+              |                             TFree (_, []) => true
+              |                           | TVar  (_, []) => true
+              |                           | _ => false));
+              |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
+              |       fun check_topsort ctxt thm =
+              |         if has_topsort (Thm.prop_of thm) then ($SMT_Normalize.drop_fact_warning ctxt thm; TrueI) else thm;
+              |
+              |       val thms0 = prems @ local_facts;
+              |       val thms = map (pair $SMT_Util.Axiom o check_topsort ctxt) thms0;
+              |       val assms_thms = ($SMT_Normalize.normalize ctxt thms);
+              |
+              |       val thms0 = [conjecture];
+              |       val thms = map (pair $SMT_Util.Conjecture o check_topsort ctxt) thms0;
+              |       val conc_thms = ($SMT_Normalize.normalize ctxt thms);
+              |
+              |       val ithms = assms_thms @ conc_thms;
+              |
+              |       fun go_run () =
+              |         let
+              |           val (str_result, _) = $SMT_Translate.translate ctxt "z3" [] comments ithms
+              |         in
+              |           str_result  end
+              |    in
+              |       Timeout.apply (Time.fromSeconds 180) go_run () end
+            |""".stripMargin
+      )
+
+    parse_hammer_facts =
+      compileFunction[ToplevelState, Theory, String, List[String], List[String], String](
+        s"""fn (state, thy, filter, adds, dels) =>
+          |    let
+          |      val proof_state = Toplevel.proof_of state;
+          |      val facts = $Auto_Isabelle.retrieve_facts proof_state thy filter adds dels;
+          |    in
+          |      facts
+          |    end
+          |""".stripMargin
+      )
+
+    parse_hammer_facts_with_theory_names =
+      compileFunction[ToplevelState, Theory, String, List[String], List[String], String](
+        s"""fn (state, thy, filter, adds, dels) =>
+           |    let
+           |      val proof_state = Toplevel.proof_of state;
+           |      val facts = $Auto_Isabelle.retrieve_facts_with_theory_names proof_state thy filter adds dels;
+           |    in
+           |      facts
+           |    end
+           |""".stripMargin
+      )
+
+    mash_relearn =
+      compileFunction[ToplevelState, Theory, Unit](
+        s"""fn (state, thy) =>
+           |    let
+           |      val proof_state = Toplevel.proof_of state;
+           |      val _ = $Auto_Isabelle.mash_relearn proof_state thy;
+           |    in
+           |      ()
+           |    end
+           |""".stripMargin
+      )
+
+    normal_with_try0 =
+      compileFunction[ToplevelState, (Boolean, String, String)](
+        s""" fn (state) =>
+          |        let
+          |          val proof_state = Toplevel.proof_of state;
+          |          val (success, method, step) = $Auto_Isabelle.try_close (Time.fromSeconds 10) proof_state;
+          |        in
+          |          (success, method, $Auto_Isabelle.clean_theorem_text step)
+          |        end
+          |""".stripMargin
+      )
+
+    // val thy_for_nitpick = thy1
+    // val Nitpick: String =
+    //   thy_for_nitpick.importMLStructureNow("Nitpick")
+    // val Nitpick_Commands: String =
+    //   thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
+    normal_with_NitPick =
+      compileFunction[ToplevelState, Theory, String](
+        s"""fn (state, thy) =>
+           |    let
+           |      val (ok, str_result) = $Auto_Isabelle.try_nitpick (Time.fromSeconds 60) state thy;
+           |    in
+           |      str_result
+           |    end
+           |""".stripMargin
+      )
+
+    // val thy_for_quickcheck = thy1
+    // val QuickCheck: String =
+    //   thy_for_quickcheck.importMLStructureNow("Quickcheck")
+    // val QuickCheck_Commands: String =
+    //   thy_for_quickcheck.importMLStructureNow("Quickcheck_Commands")
+    normal_with_QuickCheck =
+      compileFunction[ToplevelState, Theory, String](
+        s"""fn (state, thy) =>
+           |    let
+           |      val (ok, str_result) = $Auto_Isabelle.try_quickcheck (Time.fromSeconds 60) state thy;
+           |    in
+           |      str_result
+           |    end
+           |""".stripMargin
+      )
+
+    if (debug) println("Checkpoint 12")
+
+    parse_find_theorems =
+      compileFunction[ToplevelState, List[String], Int, Boolean, String](
+        s"""fn (state, query_patterns, limit, rem_dups) =>
+           |    let
+           |      val opt_limit = if limit < 0 then NONE else SOME limit;
+           |      val output = $Auto_Isabelle.find_theorems state query_patterns opt_limit rem_dups;
+           |    in
+           |      output
+           |    end
+           |""".stripMargin
+      )
+
+    // beginTheory support (moved from TheoryManager.Ops)
+    header_read = compileFunction[String, Position, TheoryHeader](
+      "fn (text,pos) => Thy_Header.read pos text"
     )
-  val pretty_local_facts: MLFunction2[ToplevelState, Boolean, List[Pretty.T]] =
-    compileFunction[ToplevelState, Boolean, List[Pretty.T]](
-      "fn (tls, b) => Proof_Context.pretty_local_facts b (Toplevel.context_of tls)"
-    )
-  val make_pretty_list_string_list: MLFunction[List[Pretty.T], List[String]] =
-    compileFunction[List[Pretty.T], List[String]](
-      "fn (pretty_list) => map Pretty.unformatted_string_of pretty_list"
+    begin_theory = compileFunction[Path, TheoryHeader, List[Theory], Theory](
+      "fn (path, header, parents) => Resources.begin_theory path header parents"
     )
 
-  val local_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] =
-    compileFunction[ToplevelState, List[(String, String)]](
-      """fn tls =>
-        |  let val ctxt = Toplevel.context_of tls;
-        |      val facts = Proof_Context.facts_of ctxt;
-        |      val props = map #1 (Facts.props facts);
-        |      val local_facts =
-        |        (if null props then [] else [("unnamed", props)]) @
-        |        Facts.dest_static true [Global_Theory.facts_of (Proof_Context.theory_of ctxt)] facts;
-        |      val thms = (
-        |           if null local_facts then []
-        |           else
-        |           (map (fn e => #2 (#2 e)) (sort_by (#1 o #2) (map (`(Proof_Context.pretty_fact ctxt)) local_facts))));
-        |      val condensed_thms = fold (fn x => fn y => (x @ y)) thms [];
-        |  in 
-        |      map (fn thm => (
-        |            Thm.get_name_hint thm,
-        |            Pretty.unformatted_string_of
-        |          (Element.pretty_statement ctxt "" thm)
-        |         ))
-        |         condensed_thms
-        |  end""".stripMargin
-    )
-  val global_facts_and_defs: MLFunction[ToplevelState, List[(String, String)]] =
-    compileFunction[ToplevelState, List[(String, String)]](
-      """fn tls =>
-          | map (fn tup => (#1 tup, Pretty.unformatted_string_of (Element.pretty_statement (Toplevel.context_of tls) "test" (#2 tup))))
-          | (Global_Theory.all_thms_of (Proof_Context.theory_of (Toplevel.context_of tls)) false)
-          """.stripMargin
-    )
-  val fact_definition: MLFunction2[ToplevelState, String, String] =
-    compileFunction[ToplevelState, String, String](
-      """fn (tls, name) =>
-        | let val ctxt = Toplevel.context_of tls;
-        |     val thm = Global_Theory.get_thms (Proof_Context.theory_of ctxt) name;
-        | in
-        |     YXML.content_of (Pretty.unformatted_string_of (Element.pretty_statement ctxt "" (hd thm)))
-        | end""".stripMargin
-    )
+    if (debug) println("Checkpoint 2 done: ML functions compiled")
+  }
+
+  // =========================================================================
+  // Layer 2 helpers (formerly TheoryManager methods)
+  // =========================================================================
+
+  /** Normalizes an import pattern string. */
+  def normalizeImportPattern(import_string: String): String = {
+    val p = if (import_string.startsWith("\"") && import_string.endsWith("\"")) {
+      import_string.substring(1, import_string.length - 1)
+    } else import_string
+    p.split("/").last.stripSuffix(".thy")
+  }
+
+  // Find out about the starter string
+  private def getStarterString: String = {
+    val decoyThy: Theory = Theory("Main")
+    for (
+      (transition, text) <- parse_text(decoyThy, fileContent).force.retrieveNow
+    ) {
+      if (
+        text.contains("theory") && text.contains(currentTheoryName) && text
+          .contains("begin")
+      ) {
+        return text
+      }
+    }
+    "This is wrong!!!"
+  }
+
+  private def getHeader(
+      text: String,
+      path: Path,
+      position: Position = Position.none
+  ): TheoryHeader = {
+    header_read(text, position).retrieveNow
+  }
+
+  private def beginTheory(
+      starterString: String,
+      workingDir: Path
+  ): Theory = {
+    if (debug) println("Checkpoint 9_1")
+    val text = Text(starterString, workingDir)
+    val header = getHeader(text.text, text.path)
+    if (debug) println("Checkpoint 9_2")
+    val masterDir = text.path
+    if (debug) println("Checkpoint 9_3")
+    val registers: ListBuffer[String] = new ListBuffer[String]()
+    if (debug) println("Checkpoint 9_4")
+    for (theory_name <- header.imports.map(normalizeImportPattern)) {
+      if (
+        theory_name == "Main" || theory_name == "Pure" || theory_name.contains(".")
+      ) {
+        registers += theory_name
+      } else {
+        registers += s"${this.session}.$theory_name"
+      }
+    }
+    if (debug) println("Checkpoint 9_5")
+    try {
+      begin_theory(masterDir, header, registers.toList.map(Theory.apply))
+        .force
+        .retrieveNow
+    } catch {
+      case e: IsabelleMLException =>
+        throw e
+    }
+  }
+
+  // =========================================================================
+  // Layer 2 + 3: Load theory and init runtime state
+  // =========================================================================
+
+  /** Initialize Layer 2: load thy file and compile thy1-dependent ML functions. */
+  def loadThy(path: String): Unit = {
+    this.path_to_thy = path
+    currentTheoryName = Path.of(path).getFileName.toString.replace(".thy", "")
+    // filecontent is the content of thy file to be proved
+    fileContent = Files.readString(Path.of(path))
+    fileContentCopy = fileContent
+    if (debug) println("File content: " + fileContent)
+
+    if (debug) println("Checkpoint 9: func begintheory")
+    // Load the theory manager
+    val starterString = getStarterString.trim.replaceAll("\n", " ").trim
+    thy1 = beginTheory(starterString, this.working_directory)
+    if (debug) println("Checkpoint 9_6: Loading theory")
+    thy1.await
+    if (debug) println("Checkpoint 10: Loading theory finished")
+
+    // setting up Sledgehammer
+    // val thy_for_sledgehammer: Theory = Theory("HOL.List")
+    thy_for_sledgehammer = thy1
+    Sledgehammer = thy_for_sledgehammer.importMLStructureNow("Sledgehammer")
+    Sledgehammer_Commands = thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Commands")
+    Sledgehammer_Prover = thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
+
+    if (debug) println("Checkpoint 11")
+
+    /** normal_with_Sledgehammer calls sledgehammer to prove the top goal with
+      * premise modifications.
+      * @param state
+      *   the current Isabelle state
+      * @param thy
+      *   the current Isabelle theory
+      * @param adds
+      *   the list of premises to be added
+      * @param dels
+      *   the list of premises to be deleted
+      * @return
+      *   a pair of a Boolean and a pair of a String and a list of Strings The
+      *   Boolean is true if the top goal is proved. The String is sledgehammer's
+      *   output containing the tactic e.g. "Try this: by blast (0.5 ms)". The
+      *   list of Strings is the list of executable commands to close the top
+      *   subgoal.
+      */
+    normal_with_Sledgehammer =
+      compileFunction[ToplevelState, Theory, List[String], List[String], (Boolean, (String, List[String]))](
+        s""" fn (state, thy, adds, dels) =>
+              |    let
+              |       fun get_refs_and_token_lists (name) = (Facts.named name, []);
+              |       val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
+              |       val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
+              |       val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false};
+              |       fun go_run (state, thy) =
+              |          let
+              |             val p_state = Toplevel.proof_of state;
+              |             val ctxt = Proof.context_of p_state;
+              |             val params = $Sledgehammer_Commands.default_params thy
+              |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
+              |                 ("timeout","30"),
+              |                 ("verbose","false")];
+              |             val results = $Sledgehammer.run_sledgehammer params $Sledgehammer_Prover.Normal NONE 1 override p_state;
+              |             val (result, (outcome, step)) = results;
+              |           in
+              |             (result, ($Sledgehammer.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
+              |           end;
+              |    in
+              |      go_run (state, thy) end
+              |""".stripMargin
+      )
+
+    if (debug) println("Checkpoint 13: Parse text")
+    // return the list of (transition and current step text)
+    transitions_and_texts = parse_text(thy1, fileContent).force.retrieveNow
+
+    if (debug) println("Checkpoint 14")
+
+    soft_reset()
+  }
+
+  /** Initialize Layer 3: runtime proof state. */
+  def soft_reset(): Unit = {
+    toplevel = init_toplevel().force.retrieveNow
+    top_level_state_map = Map()
+    frontier_proceeding_index = 0
+    accumulative_index = 0
+    if (debug) println("Checkpoint 12: State initialized")
+  }
+
+  // =========================================================================
+  // Helper methods
+  // =========================================================================
+
   def fact_definition(tls_name: String, theorem_name: String): String = {
     val toplevel_state = retrieve_tls(tls_name)
     fact_definition(toplevel_state, theorem_name).force.retrieveNow
   }
 
-  val get_dependent_thms: MLFunction2[ToplevelState, String, List[String]] =
-    compileFunction[ToplevelState, String, List[String]](
-      """fn (tls, name) =>
-        | let val thy = Toplevel.theory_of tls;
-        |     val thm = Global_Theory.get_thms thy name;
-        | in
-        |     map (fn x => (#1 (#2 x))) (Thm_Deps.thm_deps thy thm)
-        | end""".stripMargin
-    )
-  val get_dependent_thms_with_thy_names
-      : MLFunction2[ToplevelState, String, List[String]] =
-    compileFunction[ToplevelState, String, List[String]](
-      """fn (tls, name) =>
-        | let val thy = Toplevel.theory_of tls;
-        |     val thm = Global_Theory.get_thms thy name;
-        | in
-        |     map (fn x => String.concat [#theory_name (#1 x), "<\\INNER_SEP>", (#1 (#2 x))]) (Thm_Deps.thm_deps thy thm)
-        | end""".stripMargin
-    )
   def get_dependent_theorems(
       tls_name: String,
       theorem_name: String
@@ -335,58 +946,6 @@ class IsaREPL(
     }
   }
 
-  val get_used_consts: MLFunction2[ToplevelState, String, List[String]] =
-    compileFunction[ToplevelState, String, List[String]](
-      """fn(tls, inner_syntax) =>
-        |let
-        |  val term_to_list = fn te =>
-        |  let
-        |     fun leaves (left $ right) = (leaves left) @ (leaves right)
-        |     |   leaves t = [t];
-        |     fun filter_out (Const ("_type_constraint_", _)) = false
-        |     | filter_out (Const _) = true
-        |     | filter_out _ = false;
-        |     val all_leaves = leaves te;
-        |     val filtered_leaves = filter filter_out all_leaves;
-        |     fun remove(_, []) = []
-        |       | remove(x, y::l) =
-        |         if x = y then
-        |           remove(x, l)
-        |         else
-        |           y::remove(x, l);
-        |      fun removeDup [] = []
-        |        | removeDup(x::l) = x::removeDup(remove(x, l));
-        |      fun string_of_term (Const (s, _)) = s
-        |        | string_of_term _ = "";
-        |  in
-        |      removeDup (map string_of_term filtered_leaves)
-        |  end;
-        |
-        |  val type_to_list = fn ty =>
-        |  let
-        |    fun type_t (Type ty) = [#1 ty] @ (flat (map type_t (#2 ty)))
-        |    | type_t (TFree _) = []
-        |    | type_t (TVar _) = [];
-        |    fun filter_out_universal_type_symbols symbol =
-        |  case symbol of
-        |    "fun" => false
-        |    | "prop" => false
-        |    | "itself" => false
-        |    | "dummy" => false
-        |    | "proof" => false
-        |    | "Pure.proof" => false
-        |    | _ => true;
-        |  in
-        |    filter filter_out_universal_type_symbols (type_t ty)
-        |  end;
-        |  val ctxt = Toplevel.context_of tls;
-        |  val flex = fn str =>
-        |   (type_to_list (Syntax.parse_typ ctxt str))
-        |   handle _ => (term_to_list (Syntax.parse_term ctxt str));
-        |in
-        |  flex inner_syntax
-        |end""".stripMargin
-    )
   def get_all_definitions(
       tls_name: String,
       theorem_string: String
@@ -403,11 +962,6 @@ class IsaREPL(
     val deduplicated_all_defs: List[String] = all_defs.flatten
     deduplicated_all_defs.distinct
   }
-  // Nasty locales
-  val locales_opened_for_state: MLFunction[ToplevelState, List[String]] =
-    compileFunction[ToplevelState, List[String]](
-      """fn (tls) => Locale.get_locales (Toplevel.theory_of tls)""".stripMargin
-    )
 
   def locales_defined_in_file(tls: ToplevelState): List[String] = {
     val locales_opened: List[String] = locales_opened_for_state(
@@ -450,385 +1004,6 @@ class IsaREPL(
   def total_facts_and_defs_string(tls_name: String): String = {
     val tls = retrieve_tls(tls_name)
     total_facts_and_defs_string(tls)
-  }
-
-  /** Extracts the current variables, assumptions and conclusion from the proof
-    * state.
-    *
-    * This function takes a ToplevelState and returns a tuple containing:
-    *   - A list of strings representing the current assumptions (local facts)
-    *   - A string representing the current proof goal (conclusion)
-    *
-    * The output is formatted as human-readable text, with XML markup removed.
-    */
-  val parse_vars: MLFunction[ToplevelState, List[String]] =
-    compileFunction[ToplevelState, List[String]](
-      s"""fn (toplevel_state) =>
-        |  let
-        |    val p_state = Toplevel.proof_of toplevel_state;
-        |    val ctxt = Proof.context_of p_state;
-        |    val {context = _, facts, goal} = Proof.goal p_state;
-        |  
-        |  (* Get all assumptions from the context *)
-        |  val assumptions = Facts.props (Proof_Context.facts_of ctxt) |> map #1;
-        |  val props = map Thm.prop_of assumptions;
-        |  
-        |  (* Helper functions for variable processing *)
-        |  fun sort_idxs vs = map (apsnd (sort (prod_ord string_ord int_ord))) vs;
-        |  
-        |  fun ins_entry (x, y) = 
-        |    AList.default (op =) (x, []) #> AList.map_entry (op =) x (insert (op =) y);
-        |  
-        |  (* Collect variables from terms *)
-        |  val add_vars = Term.fold_aterms 
-        |    (fn Free (x, T) => ins_entry (T, (x, ~1))
-        |     | Var (xi, T) => ins_entry (T, xi)
-        |     | _ => I);
-        |  
-        |  fun vars_of t = sort_idxs (add_vars t []);
-        |  
-        |  (* Pretty-printing functions *)
-        |  val prt_term = singleton (Syntax.uncheck_terms ctxt) 
-        |    #> Type_Annotation.ignore_free_types 
-        |    #> Syntax.string_of_term ctxt;
-        |  
-        |  fun prt_var (x, ~1) = prt_term (Syntax.free x)
-        |    | prt_var xi = prt_term (Syntax.var xi);
-        |  
-        |  val prt_typ = Syntax.string_of_typ ctxt;
-        |  
-        |  (* Format variable declarations *)
-        |  fun prt_all (ty, vars) = 
-        |    let
-        |      val ty_str = prt_typ ty;
-        |      fun print_var (name, idx) = prt_var (name, idx) ^ " :: " ^ ty_str
-        |    in 
-        |      map print_var vars 
-        |    end;
-        |  
-        |  (* Process all propositions to extract variables *)
-        |  val all_vars = maps vars_of props;
-        |  val var_decls = maps prt_all all_vars;
-        |  
-        |  (* Final result with duplicates removed *)
-        |  val res = var_decls 
-        |    |> map $Auto_Isabelle.clean_theorem_text
-        |    |> distinct (op =);
-        |  in
-        |    res
-        |  end""".stripMargin
-    )
-
-  val parse_assms: MLFunction[ToplevelState, List[String]] =
-    compileFunction[ToplevelState, List[String]](
-      s"""fn (toplevel_state) =>
-        | let
-        |     (* Extract proof state and context *)
-        |     val proof_state = Toplevel.proof_of toplevel_state;
-        |     val proof_context = Proof.context_of proof_state;
-        |
-        |     (* Extract and format assumptions *)
-        |     val assumptions = 
-        |         Facts.props (Proof_Context.facts_of proof_context)
-        |         |> map #1
-        |         |> map (Thm.string_of_thm proof_context);
-        | in
-        |     map $Auto_Isabelle.clean_theorem_text assumptions
-        | end""".stripMargin
-    )
-
-  val parse_goal: MLFunction[ToplevelState, String] =
-    compileFunction[ToplevelState, String](
-      s"""fn (toplevel_state) =>
-        | let
-        |     (* Extract proof state and context *)
-        |     val proof_state = Toplevel.proof_of toplevel_state;
-        |     val proof_context = Proof.context_of proof_state;
-        |     val {context = _, facts = _, goal} = Proof.goal proof_state;
-        |
-        |     (* Extract and format conclusion *)
-        |     val conclusion = 
-        |       if not (Proof.goal_finished proof_state) then
-        |         let
-        |           val ({context = ctxt, prems = _, concl, ...}, _) = Subgoal.focus proof_context 1 NONE goal
-        |       in
-        |         Variable.revert_fixed ctxt (Syntax.string_of_term ctxt (Thm.term_of concl))
-        |       end
-        |       else
-        |         ""
-        | in
-        |     $Auto_Isabelle.clean_theorem_text conclusion
-        | end""".stripMargin
-    )
-
-  // check if the sub-proof is finished; if it is, then we can successfully retrieve it by `this`, and thus return true; otherwise, return false
-  val parse_no_subgoals: MLFunction[ToplevelState, Boolean] =
-    compileFunction[ToplevelState, Boolean](
-      """fn (toplevel_state) =>
-        | let
-        |   val proof_state = Toplevel.proof_of toplevel_state;
-        |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
-        |   val result = Thm.no_prems goal;
-        | in
-        |   result
-        | end""".stripMargin
-    )
-
-  val parse_num_subgoals: MLFunction[ToplevelState, Int] =
-    compileFunction[ToplevelState, Int](
-      """fn (toplevel_state) =>
-        | let
-        |   val proof_state = Toplevel.proof_of toplevel_state;
-        |   val {context = ctxt, facts = facts, goal = goal} = Proof.goal proof_state;
-        |   val result = Thm.nprems_of goal;
-        | in
-        |   result
-        | end""".stripMargin
-    )
-
-  // Find out about the starter string
-  // filecontent is the content of thy file to be proved
-  private var fileContent: String = Files.readString(Path.of(path_to_thy))
-  var fileContentCopy: String = fileContent
-  if (debug) println("File content: " + fileContent)
-
-  var top_level_state_map: Map[String, MLValue[ToplevelState]] = Map()
-  if (debug) println("Checkpoint 9: func begintheory")
-  // Load the theory manager
-  val theoryManager: TheoryManager = new TheoryManager(
-    isabelle_home = isabelle_home,
-    path_to_thy = path_to_thy,
-    working_directory = working_directory,
-    session = session,
-    sessionRoots = session_roots,
-    isabelle = isabelle,
-    debug = debug
-  )
-
-  var thy1: Theory = theoryManager.beginTheory()
-  if (debug) println("Checkpoint 9_6: Loading theory")
-  thy1.await
-  if (debug) println("Checkpoint 10: Loading theory finished")
-
-  
-  val parse_to_smt: MLFunction[ToplevelState, String] =
-    compileFunction[ToplevelState, String](
-      s""" fn (state) =>  
-            |    let  
-            |       val p_state = Toplevel.proof_of state;
-            |       val ctxt = Proof.context_of p_state;
-            |       val {context = _, facts, goal} = Proof.goal p_state;
-            |       val ({context = ctxt, prems, concl, ...}, _) = Subgoal.focus ctxt 1 NONE goal
-            |
-            |       val facts = Proof_Context.facts_of ctxt;
-            |       val local_facts = map #1 (Facts.props facts);
-            |       
-            |       val not_const = Syntax.read_term ctxt "Not";
-            |       val not_ct = Thm.cterm_of ctxt not_const;
-            |       fun negate ct = Thm.dest_comb ct ||> Thm.apply not_ct |-> Thm.apply;
-            |       val cprop = negate (Thm.rhs_of ($SMT_Normalize.atomize_conv ctxt concl));
-            |       val conjecture = Thm.assume cprop;
-            |
-            |       val options = $SMT_Config.solver_options_of ctxt;
-            |       val comments = [space_implode " " options];
-            |       val has_topsort = Term.exists_type (Term.exists_subtype (fn
-            |                             TFree (_, []) => true
-            |                           | TVar  (_, []) => true
-            |                           | _ => false));
-            |       val TrueI = Proof_Context.get_thm ctxt "TrueI";
-            |       fun check_topsort ctxt thm = 
-            |         if has_topsort (Thm.prop_of thm) then ($SMT_Normalize.drop_fact_warning ctxt thm; TrueI) else thm;
-            |
-            |       val thms0 = prems @ local_facts;
-            |       val thms = map (pair $SMT_Util.Axiom o check_topsort ctxt) thms0;
-            |       val assms_thms = ($SMT_Normalize.normalize ctxt thms);
-            |
-            |       val thms0 = [conjecture];
-            |       val thms = map (pair $SMT_Util.Conjecture o check_topsort ctxt) thms0;
-            |       val conc_thms = ($SMT_Normalize.normalize ctxt thms);
-            |
-            |       val ithms = assms_thms @ conc_thms;
-            |
-            |       fun go_run () = 
-            |         let 
-            |           val (str_result, _) = $SMT_Translate.translate ctxt "z3" [] comments ithms
-            |         in 
-            |           str_result  end  
-            |    in  
-            |       Timeout.apply (Time.fromSeconds 180) go_run () end 
-          |""".stripMargin
-    )
-
-  // setting up Sledgehammer
-  // val thy_for_sledgehammer: Theory = Theory("HOL.List")
-  val thy_for_sledgehammer = thy1
-  val Sledgehammer: String =
-    thy_for_sledgehammer.importMLStructureNow("Sledgehammer")
-  val Sledgehammer_Commands: String =
-    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Commands")
-  val Sledgehammer_Prover: String =
-    thy_for_sledgehammer.importMLStructureNow("Sledgehammer_Prover")
-
-  if (debug) println("Checkpoint 11")
-
-  /** normal_with_Sledgehammer calls sledgehammer to prove the top goal with
-    * premise modifications.
-    * @param state
-    *   the current Isabelle state
-    * @param thy
-    *   the current Isabelle theory
-    * @param adds
-    *   the list of premises to be added
-    * @param dels
-    *   the list of premises to be deleted
-    * @return
-    *   a pair of a Boolean and a pair of a String and a list of Strings The
-    *   Boolean is true if the top goal is proved. The String is sledgehammer's
-    *   output containing the tactic e.g. "Try this: by blast (0.5 ms)". The
-    *   list of Strings is the list of executable commands to close the top
-    *   subgoal.
-    */
-  val normal_with_Sledgehammer: MLFunction4[ToplevelState, Theory, List[
-    String
-  ], List[String], (Boolean, (String, List[String]))] =
-    compileFunction[ToplevelState, Theory, List[String], List[
-      String
-    ], (Boolean, (String, List[String]))](
-      s""" fn (state, thy, adds, dels) =>
-            |    let
-            |       fun get_refs_and_token_lists (name) = (Facts.named name, []);
-            |       val adds_refs_and_token_lists = map get_refs_and_token_lists adds;
-            |       val dels_refs_and_token_lists = map get_refs_and_token_lists dels;
-            |       val override = {add=adds_refs_and_token_lists,del=dels_refs_and_token_lists,only=false};
-            |       fun go_run (state, thy) =
-            |          let
-            |             val p_state = Toplevel.proof_of state;
-            |             val ctxt = Proof.context_of p_state;
-            |             val params = $Sledgehammer_Commands.default_params thy
-            |                [("provers", "cvc5 vampire verit e spass z3 zipperposition"),
-            |                 ("timeout","30"),
-            |                 ("verbose","false")];
-            |             val results = $Sledgehammer.run_sledgehammer params $Sledgehammer_Prover.Normal NONE 1 override p_state;
-            |             val (result, (outcome, step)) = results;
-            |           in
-            |             (result, ($Sledgehammer.short_string_of_sledgehammer_outcome outcome, [YXML.content_of step]))
-            |           end;
-            |    in
-            |      go_run (state, thy) end
-            |""".stripMargin
-    )
-
-  val parse_hammer_facts: MLFunction5[ToplevelState, Theory, String, List[
-    String
-  ], List[String], String] =
-    compileFunction[ToplevelState, Theory, String, List[String], List[
-      String
-    ], String](
-      s"""fn (state, thy, filter, adds, dels) =>
-        |    let
-        |      val proof_state = Toplevel.proof_of state;
-        |      val facts = $Auto_Isabelle.retrieve_facts proof_state thy filter adds dels;
-        |    in
-        |      facts
-        |    end
-        |""".stripMargin
-    )
-
-  val parse_hammer_facts_with_theory_names
-      : MLFunction5[ToplevelState, Theory, String, List[String], List[
-        String
-      ], String] =
-    compileFunction[ToplevelState, Theory, String, List[String], List[
-      String
-    ], String](
-      s"""fn (state, thy, filter, adds, dels) =>
-         |    let
-         |      val proof_state = Toplevel.proof_of state;
-         |      val facts = $Auto_Isabelle.retrieve_facts_with_theory_names proof_state thy filter adds dels;
-         |    in
-         |      facts
-         |    end
-         |""".stripMargin
-    )
-
-    val mash_relearn: MLFunction2[ToplevelState, Theory, Unit] =
-    compileFunction[ToplevelState, Theory, Unit](
-      s"""fn (state, thy) =>
-         |    let
-         |      val proof_state = Toplevel.proof_of state;
-         |      val _ = $Auto_Isabelle.mash_relearn proof_state thy;
-         |    in
-         |      ()
-         |    end
-         |""".stripMargin
-    )
-
-  val normal_with_try0: MLFunction[ToplevelState, (Boolean, String, String)] =
-    compileFunction[ToplevelState, (Boolean, String, String)](
-      s""" fn (state) =>
-        |        let
-        |          val proof_state = Toplevel.proof_of state;
-        |          val (success, method, step) = $Auto_Isabelle.try_close (Time.fromSeconds 10) proof_state;
-        |        in
-        |          (success, method, $Auto_Isabelle.clean_theorem_text step)
-        |        end
-        |""".stripMargin
-    )
-
-  // val thy_for_nitpick = thy1
-  // val Nitpick: String =
-  //   thy_for_nitpick.importMLStructureNow("Nitpick")
-  // val Nitpick_Commands: String =
-  //   thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
-  val normal_with_NitPick: MLFunction2[ToplevelState, Theory, String] =
-    compileFunction[ToplevelState, Theory, String](
-      s"""fn (state, thy) =>
-         |    let
-         |      val (ok, str_result) = $Auto_Isabelle.try_nitpick (Time.fromSeconds 60) state thy;
-         |    in
-         |      str_result
-         |    end
-         |""".stripMargin
-    )
-
-  // val thy_for_quickcheck = thy1
-  // val QuickCheck: String =
-  //   thy_for_quickcheck.importMLStructureNow("Quickcheck")
-  // val QuickCheck_Commands: String =
-  //   thy_for_quickcheck.importMLStructureNow("Quickcheck_Commands")
-  val normal_with_QuickCheck: MLFunction2[ToplevelState, Theory, String] =
-    compileFunction[ToplevelState, Theory, String](
-      s"""fn (state, thy) =>
-         |    let
-         |      val (ok, str_result) = $Auto_Isabelle.try_quickcheck (Time.fromSeconds 60) state thy;
-         |    in
-         |      str_result
-         |    end
-         |""".stripMargin
-    )
-
-  val parse_find_theorems: MLFunction4[ToplevelState, List[String], Int, Boolean, String] =
-    compileFunction[ToplevelState, List[String], Int, Boolean, String](
-      s"""fn (state, query_patterns, limit, rem_dups) =>
-         |    let
-         |      val opt_limit = if limit < 0 then NONE else SOME limit;
-         |      val output = $Auto_Isabelle.find_theorems state query_patterns opt_limit rem_dups;
-         |    in
-         |      output
-         |    end
-         |""".stripMargin
-    )
-
-  var toplevel: ToplevelState = init_toplevel().force.retrieveNow
-  if (debug) println("Checkpoint 12")
-  def reset_map(): Unit = {
-    top_level_state_map = Map()
-  }
-
-  def reset_problem(): Unit = {
-    thy1 = theoryManager.beginTheory()
-    toplevel = init_toplevel().force.retrieveNow
-    reset_map()
   }
 
   def getFacts(stateString: String): String = {
@@ -1051,13 +1226,6 @@ class IsaREPL(
     Await.result(f_res, Duration(timeout_in_millis, "millis"))
   }
 
-  if (debug) println("Checkpoint 13: Parse text")
-  // return the list of (transition and current step text)
-  val transitions_and_texts = parse_text(thy1, fileContent).force.retrieveNow
-  var frontier_proceeding_index = 0
-
-  if (debug) println("Checkpoint 14")
-
   /** Executes Isabelle proof steps until reaching a specific target step. This
     * function accumulates proof states by executing transitions one by one
     * until it finds the target proof step specified by isar_string.
@@ -1100,7 +1268,6 @@ class IsaREPL(
     }
   }
 
-  var accumulative_index: Int = 0
   def accumulative_step_before_theorem_starts(theorem_name: String): Unit = {
     val sanitised_theorem_name =
       theorem_name.trim.replaceAll("\\s+", " ")
@@ -1236,7 +1403,7 @@ class IsaREPL(
       case "none" | "unknown" => false
       case _ => false // Default case for unexpected results
     }
-    
+
     val message = result match {
       case "genuine" => "Nitpick found a genuine counterexample"
       case "quasi_genuine" => "Nitpick found a quasi-genuine counterexample (may contradict missing axioms)"
@@ -1245,10 +1412,9 @@ class IsaREPL(
       case "unknown" => "Nitpick encountered a problem (e.g., out of memory)"
       case _ => s"Unexpected nitpick result: $result"
     }
-    
+
     (hasCounterexample, message)
   }
-
 
   def check_by_quickcheck(timeout_in_millis: Int = 65000): (Boolean, String) = {
   // Specifies the expected outcome, which must be one of the following:
@@ -1307,6 +1473,7 @@ class IsaREPL(
     goal
   }
 
+  // check if the sub-proof is finished; if it is, then we can successfully retrieve it by `this`, and thus return true; otherwise, return false
   def check_no_subgoals(): Boolean = {
     val no_subgoals = parse_no_subgoals(toplevel).force.retrieveNow
     no_subgoals
@@ -1394,14 +1561,20 @@ class IsaREPL(
   }
 
   // reset isabelle and thy to be proved
+  // TODO: redesign this — currently uses stale TheoryManager state, will be
+  // replaced by GatewayServer calling loadThy() + resetState() externally.
   def reset_isabelle(path: String): String = {
     path_to_thy = path
     currentTheoryName = path_to_thy.split("/").last.replace(".thy", "")
     fileContent = Files.readString(Path.of(path_to_thy))
     fileContentCopy = fileContent
-    thy1 = theoryManager.beginTheory()
+    // FIXME: beginTheory() uses stale starter string from old path
+    thy1 = beginTheory(
+      getStarterString.trim.replaceAll("\n", " ").trim,
+      this.working_directory
+    )
     toplevel = init_toplevel().force.retrieveNow
-    reset_map()
+    top_level_state_map = Map()
     "Reset"
   }
 
@@ -1498,5 +1671,13 @@ object IsaREPL {
   }
   def unicode2isabelle(str: String): String = {
     Symbols.unicodeToSymbols(str)
+  }
+
+  // Types moved from TheoryManager for beginTheory support
+  trait Source { def path: Path }
+  case class Text(text: String, path: Path, position: Position) extends Source
+  object Text {
+    def apply(text: String, path: Path)(implicit isabelle: Isabelle): Text =
+      new Text(text, path, Position.none)
   }
 }

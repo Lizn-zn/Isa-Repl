@@ -35,6 +35,23 @@ class IsaReplApplication {
     }
   }
 
+  // Last-used args for diffing across _initializeRepl calls
+  private var lastWorkingDirectory: String = _
+  private var lastSession: String = _
+  private var lastSessionRoots: List[String] = _
+
+  private def sessionArgsChanged(home: Path, wd: String, sess: String, roots: List[String]): Boolean = {
+    repl.isEmpty ||
+    home != repl.get.isabelle_home ||
+    wd != repl.get.working_directory ||
+    sess != repl.get.session ||
+    roots != repl.get.session_roots
+  }
+
+  private def thyPathChanged(path: String): Boolean = {
+    repl.isEmpty || path != repl.get.path_to_thy
+  }
+
   def _initializeRepl(pathToThy: String): String = {
     // This is kept since scala default parameters cannot be called from python through py4j.
     _initializeRepl(
@@ -60,18 +77,31 @@ class IsaReplApplication {
               "ISABELLE_HOME is not set and isabelle executable not found in PATH"
             )
           case Some(home) =>
-            if (repl.isDefined) {
-              repl.get.exit_isabelle()
-            }
-            repl = Some(
-              new IsaREPL(
+            val roots = sessionRoots.asScala.toList
+            val wd = workingDirectory
+            val sess = session
+
+            if (sessionArgsChanged(home, wd, sess, roots)) {
+              // Session args changed (or first call) — full rebuild
+              if (repl.isDefined) repl.get.exit_isabelle()
+              repl = Some(new IsaREPL(
                 isabelle_home = home,
                 path_to_thy = pathToThy,
-                working_directory = Path.of(workingDirectory),
-                session = session,
-                session_roots = sessionRoots.asScala.toList
-              )
-            )
+                working_directory = Path.of(wd),
+                session = sess,
+                session_roots = roots
+              ))
+            } else if (thyPathChanged(pathToThy)) {
+              // Only thy changed — reuse L1, reload L2+L3
+              repl.get.loadThy(pathToThy)
+            } else {
+              // Nothing changed — L3 only
+              repl.get.soft_reset()
+            }
+
+            lastWorkingDirectory = wd
+            lastSession = sess
+            lastSessionRoots = roots
         }
         "True" + "<\\SEP>" + "initialize successfully"
       } catch {
@@ -82,11 +112,17 @@ class IsaReplApplication {
     result
   }
 
-  def _resetRepl(pathToThy: String): Unit = {
-    val msg = requireRepl(_.reset_isabelle(pathToThy))
-    if (msg != "Reset") {
-      _initializeRepl(pathToThy)
-    }
+  def _resetRepl(): String = {
+    val result =
+      try {
+        requireRepl(_.soft_reset())
+        "True" + "<\\SEP>" + "reset successfully"
+      } catch {
+        case e: Exception =>
+          println(s"Error during reset: ${e.getMessage}")
+          "False" + "<\\SEP>" + s"failed to reset. Get msg: ${e.getMessage}"
+      }
+    result
   }
 
   def _exit(): Unit = {
