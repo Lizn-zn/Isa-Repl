@@ -113,6 +113,14 @@ class IsaREPL(
   val autoIsaPath = Paths.get(autoIsaPath_tmp)
   val thy0 = Theory(autoIsaPath)
   val Auto_Isabelle: String = thy0.importMLStructureNow("Auto_Isabelle")
+
+  // setting up SMT_translate
+  // val Skip_Proof: String = thy0.importMLStructureNow("Skip_Proof")
+  val SMT_Config: String = thy0.importMLStructureNow("SMT_Config")
+  val SMT_Normalize: String = thy0.importMLStructureNow("SMT_Normalize")
+  val SMT_Util: String = thy0.importMLStructureNow("SMT_Util")
+  val SMT_Translate: String = thy0.importMLStructureNow("SMT_Translate")
+
   // Compile useful ML functions
   val num_of_processors: MLFunction0[Int] =
     compileFunction0[Int]("fn _ => Multithreading.num_processors ()")
@@ -602,12 +610,7 @@ class IsaREPL(
   thy1.await
   if (debug) println("Checkpoint 10: Loading theory finished")
 
-  // setting up SMT_translate
-  val Skip_Proof: String = thy1.importMLStructureNow("Skip_Proof")
-  val SMT_Config: String = thy1.importMLStructureNow("SMT_Config")
-  val SMT_Normalize: String = thy1.importMLStructureNow("SMT_Normalize")
-  val SMT_Util: String = thy1.importMLStructureNow("SMT_Util")
-  val SMT_Translate: String = thy1.importMLStructureNow("SMT_Translate")
+  
   val parse_to_smt: MLFunction[ToplevelState, String] =
     compileFunction[ToplevelState, String](
       s""" fn (state) =>  
@@ -772,11 +775,11 @@ class IsaREPL(
         |""".stripMargin
     )
 
-  val thy_for_nitpick = thy1
-  val Nitpick: String =
-    thy_for_nitpick.importMLStructureNow("Nitpick")
-  val Nitpick_Commands: String =
-    thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
+  // val thy_for_nitpick = thy1
+  // val Nitpick: String =
+  //   thy_for_nitpick.importMLStructureNow("Nitpick")
+  // val Nitpick_Commands: String =
+  //   thy_for_nitpick.importMLStructureNow("Nitpick_Commands")
   val normal_with_NitPick: MLFunction2[ToplevelState, Theory, String] =
     compileFunction[ToplevelState, Theory, String](
       s"""fn (state, thy) =>
@@ -788,9 +791,9 @@ class IsaREPL(
          |""".stripMargin
     )
 
-  val thy_for_quickcheck = thy1
-  val QuickCheck: String =
-    thy_for_quickcheck.importMLStructureNow("Quickcheck")
+  // val thy_for_quickcheck = thy1
+  // val QuickCheck: String =
+  //   thy_for_quickcheck.importMLStructureNow("Quickcheck")
   // val QuickCheck_Commands: String =
   //   thy_for_quickcheck.importMLStructureNow("Quickcheck_Commands")
   val normal_with_QuickCheck: MLFunction2[ToplevelState, Theory, String] =
