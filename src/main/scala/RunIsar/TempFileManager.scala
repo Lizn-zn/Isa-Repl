@@ -6,6 +6,7 @@ import java.io.{File, IOException}
 import java.net.URI
 import scala.util.Using
 import scala.collection.mutable.Set
+import io.github.classgraph.ClassGraph
 
 /**
  * Manages temporary file operations including copying resources from JAR/filesystem.
@@ -71,64 +72,45 @@ class TempFileManager {
     }
   }
 
-  /**
-   * Copies a resource directory to target location.
-   * @param sourcePath Resource path relative to classloader (e.g., "some/dir")
-   * @param targetDir Destination directory
-   * @throws IOException If resource not found or copy fails
-   */
-  def copyResources(sourcePath: String, targetDir: File): Unit = {
-    require(sourcePath != null && targetDir != null, "Parameters cannot be null")
+  /** Copies a resource directory to target location.
+    * @param sourcePath
+    *   Resource path relative to "src/main/resources" i.e. "RunIsar/isabelle/AutoIsar"
+    * @param targetDir
+    *   Destination directory
+    * @throws IOException
+    *   If resource not found or copy fails
+    */
+  def copyResources(sourceDir: String, targetDir: File): Unit = {
+    require(
+      sourceDir != null && targetDir != null,
+      "Parameters cannot be null"
+    )
+    var srcDir = sourceDir
+    // Append / to the input path if it doesn't end with one
+    if (!srcDir.endsWith("/")) {
+      srcDir += "/"
+    }
 
-    val resourceUrl = Option(getClass.getClassLoader.getResource(sourcePath))
-      .getOrElse(throw new IOException(s"Resource not found: $sourcePath"))
-
-    val uri = resourceUrl.toURI
-
-    // Ensure target directory exists
     Files.createDirectories(targetDir.toPath)
-
-    uri.getScheme match {
-      case "jar" => copyFromJar(uri, sourcePath, targetDir)
-      case "file" => copyFromFileSystem(uri, targetDir)
-      case other => throw new IOException(s"Unsupported URI scheme: $other")
-    }
-  }
-
-  /** Copies resources from within a JAR file */
-  private def copyFromJar(jarUri: URI, sourcePath: String, targetDir: File): Unit = {
-    var jarFs: FileSystem = null
-    try {
-      jarFs = FileSystems.newFileSystem(jarUri, new java.util.HashMap[String, Any])
-      val jarPath = jarUri.toString.split("!")(1).stripPrefix("/")
-      val rootPath = jarFs.getPath(jarPath)
-
-      Files.walk(rootPath).forEach { sourceFile =>
-        if (!Files.isDirectory(sourceFile)) {
-          val relativePath = rootPath.relativize(sourceFile).toString
-          val targetFile = targetDir.toPath.resolve(relativePath)
-          Files.createDirectories(targetFile.getParent)
-          Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
-          // println(s"Copied: $sourceFile -> $targetFile")
+    Using.resource(new ClassGraph().acceptPackages("RunIsar").scan()) { scan =>
+      scan.getAllResources.asScala
+        .filter(resource =>
+          resource.getPathRelativeToClasspathElement().startsWith(srcDir)
+        )
+        .foreach { resource =>
+          val targetRelPath =
+            resource.getPathRelativeToClasspathElement().stripPrefix(srcDir)
+          val targetPath = Paths.get(targetDir.getPath(), targetRelPath)
+          val parent = targetPath.getParent
+          if (parent != null) {
+            Files.createDirectories(parent)
+          }
+          Using.resource(resource.open()) { in =>
+            Files.copy(in, targetPath, StandardCopyOption.REPLACE_EXISTING)
+          }
         }
-      }
-    } finally {
-      if (jarFs != null) jarFs.close()
     }
-  }
 
-  /** Copies resources from regular filesystem */
-  private def copyFromFileSystem(uri: URI, targetDir: File): Unit = {
-    val sourceDir = Paths.get(uri)
-    Files.walk(sourceDir).forEach { sourceFile =>
-      if (!Files.isDirectory(sourceFile)) {
-        val relativePath = sourceDir.relativize(sourceFile).toString
-        val targetFile = targetDir.toPath.resolve(relativePath)
-        Files.createDirectories(targetFile.getParent)
-        Files.copy(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
-        // println(s"Copied: $sourceFile -> $targetFile")
-      }
-    }
   }
 
   /**

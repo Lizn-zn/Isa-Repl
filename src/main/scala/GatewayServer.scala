@@ -5,40 +5,62 @@ import RunIsar.{IsaREPL, TempFileManager}
 import RunIsar.Exceptions.IsabelleMLException
 import scala.jdk.CollectionConverters._
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, Path}
 import java.util
 import java.util.concurrent.TimeoutException
 
 class IsaReplApplication {
-  val isabelleHome: String = sys.env.getOrElse(
-    "ISABELLE_HOME",
-    throw new Exception("ISABELLE_HOME not set")
-  )
-  val workingDirectory: String = {
-    val path = Paths.get("/tmp/IsaREPL/")
-    if (!Files.exists(path)) {
-      Files.createDirectories(path)
+  var isabelleHome: Option[Path] = IsaREPL.resolveIsabelleHome()
+  val workingDirectory: Path = Files.createTempDirectory("IsaREPL")
+
+  private var repl: Option[IsaREPL] = None
+
+  private def requireRepl[A](f: IsaREPL => A): A = {
+    repl match {
+      case Some(r) => f(r)
+      case None =>
+        throw new IllegalStateException(
+          "REPL not initialized. Call _initializeRepl first."
+        )
     }
-    path.toAbsolutePath.toString
   }
 
-  private var repl: IsaREPL = _
+  def _setIsabelleHome(isabelleHome: String): Unit = {
+    if (isabelleHome != null && isabelleHome.nonEmpty) {
+      this.isabelleHome = Some(Path.of(isabelleHome))
+    } else {
+      throw new IllegalArgumentException(
+        "Isabelle home path cannot be null or empty"
+      )
+    }
+  }
+
+  // Last-used args for diffing across _initializeRepl calls
+  private var lastWorkingDirectory: String = _
+  private var lastSession: String = _
+  private var lastSessionRoots: List[String] = _
+
+  private def sessionArgsChanged(home: Path, wd: String, sess: String, roots: List[String]): Boolean = {
+    repl.isEmpty ||
+    home != repl.get.isabelle_home ||
+    wd != repl.get.working_directory ||
+    sess != repl.get.session ||
+    roots != repl.get.session_roots
+  }
+
+  private def thyPathChanged(path: String): Boolean = {
+    repl.isEmpty || path != repl.get.path_to_thy
+  }
 
   def _initializeRepl(pathToThy: String): String = {
-    val result = 
-      try {
-        repl = new IsaREPL(
-          isabelle_home = isabelleHome,
-            path_to_thy = pathToThy,
-            working_directory = workingDirectory
-          )
-          "True" + "<\\SEP>" + "initialize successfully"
-      } catch {
-        case e: Exception =>
-          println(s"Error during initialization: ${e.getMessage}")
-          "False" + "<\\SEP>" + s"failed for initialize the isar environment. Get msg: ${e.getMessage}"
-      }
-    result
+    // This is kept since scala default parameters cannot be called from python through py4j.
+    _initializeRepl(
+      pathToThy = pathToThy,
+      workingDirectory = this.workingDirectory.toString,
+      session = "HOL",
+      sessionRoots =
+        new util.ArrayList[String]() // empty so that no ROOT file is needed.
+    )
   }
 
   def _initializeRepl(
@@ -47,15 +69,40 @@ class IsaReplApplication {
       session: String,
       sessionRoots: util.ArrayList[String]
   ): String = {
-    val result = 
+    val result =
       try {
-        repl = new IsaREPL(
-          isabelle_home = isabelleHome,
-          path_to_thy = pathToThy,
-          working_directory = workingDirectory,
-          session = session,
-          session_roots = sessionRoots.asScala.toList
-        )
+        isabelleHome match {
+          case None =>
+            throw new IllegalStateException(
+              "ISABELLE_HOME is not set and isabelle executable not found in PATH"
+            )
+          case Some(home) =>
+            val roots = sessionRoots.asScala.toList
+            val wd = workingDirectory
+            val sess = session
+
+            if (sessionArgsChanged(home, wd, sess, roots)) {
+              // Session args changed (or first call) — full rebuild
+              if (repl.isDefined) repl.get.exit_isabelle()
+              repl = Some(new IsaREPL(
+                isabelle_home = home,
+                path_to_thy = pathToThy,
+                working_directory = Path.of(wd),
+                session = sess,
+                session_roots = roots
+              ))
+            } else if (thyPathChanged(pathToThy)) {
+              // Only thy changed — reuse L1, reload L2+L3
+              repl.get.loadThy(pathToThy)
+            } else {
+              // Nothing changed — L3 only
+              repl.get.soft_reset()
+            }
+
+            lastWorkingDirectory = wd
+            lastSession = sess
+            lastSessionRoots = roots
+        }
         "True" + "<\\SEP>" + "initialize successfully"
       } catch {
         case e: Exception =>
@@ -65,19 +112,22 @@ class IsaReplApplication {
     result
   }
 
-  def _resetRepl(pathToThy: String): Unit = {
-    val msg = repl.reset_isabelle(pathToThy)
-    if (msg != "Reset") {
-      _initializeRepl(pathToThy)
-    }
+  def _resetRepl(): String = {
+    val result =
+      try {
+        requireRepl(_.soft_reset())
+        "True" + "<\\SEP>" + "reset successfully"
+      } catch {
+        case e: Exception =>
+          println(s"Error during reset: ${e.getMessage}")
+          "False" + "<\\SEP>" + s"failed to reset. Get msg: ${e.getMessage}"
+      }
+    result
   }
 
   def _exit(): Unit = {
     try {
-      if (repl != null) {
-        repl.exit_isabelle()
-      }
-      TempFileManager.cleanupAll()
+      repl.foreach(_.exit_isabelle())
     } catch {
       case e: Exception =>
         println(s"Error during cleanup: ${e.getMessage}")
@@ -87,7 +137,7 @@ class IsaReplApplication {
   def _compile(): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.compile()
+        "True" + "<\\SEP>" + requireRepl(_.compile())
       } catch {
         case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for compile the isar environment. Get msg: ${e.getMessage}"
@@ -98,7 +148,7 @@ class IsaReplApplication {
   def _compile(isarProof: String): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.compile(isarProof)
+        "True" + "<\\SEP>" + requireRepl(_.compile(isarProof))
       } catch {
         case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for compile the isar environment `$isarProof`. Get msg: ${e.getMessage}"
@@ -109,10 +159,10 @@ class IsaReplApplication {
   def _step(command: String): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.step(command)
+        "True" + "<\\SEP>" + requireRepl(_.step(command))
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed applying command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -120,12 +170,12 @@ class IsaReplApplication {
   def _step_with_30s_timeout(command: String): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.step_with_30s(command)
+        "True" + "<\\SEP>" + requireRepl(_.step_with_30s(command))
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
         case e: TimeoutException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -133,10 +183,10 @@ class IsaReplApplication {
   def _step_without_timeout(command: String): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.step_without_timeout(command)
+        "True" + "<\\SEP>" + requireRepl(_.step_without_timeout(command))
       } catch {
         case e: IsabelleMLException =>
-          "False" + "<\\SEP>" + s"failed for prove the goal using the tactic `$command`. Get msg: ${e.getMessage}"
+          "False" + "<\\SEP>" + s"Failed to apply command `$command`. Get msg: ${e.getMessage}"
       }
     result
   }
@@ -144,7 +194,7 @@ class IsaReplApplication {
   def _translate_to_smt(): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.translate_to_smt()
+        "True" + "<\\SEP>" + requireRepl(_.translate_to_smt())
       } catch {
         case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for translate the goal to smt. Get msg: ${e.getMessage}"
@@ -155,7 +205,7 @@ class IsaReplApplication {
   def _prove_by_hammer(): String = {
     val result =
       try {
-        val (ok, results) = repl.prove_by_hammer()
+        val (ok, results) = requireRepl(_.prove_by_hammer())
         if (ok) {
           "True" + "<\\SEP>" + results
         } else {
@@ -173,7 +223,7 @@ class IsaReplApplication {
   def _try_close(): String = {
     val result =
       try {
-        val (ok, results) = repl.try_close()
+        val (ok, results) = requireRepl(_.try_close())
         if (ok) {
           "True" + "<\\SEP>" + results
         } else {
@@ -191,7 +241,7 @@ class IsaReplApplication {
   def _check_by_nitpick(): String = {
     val result =
       try {
-        val (hasCounterexample, message) = repl.check_by_nitpick()
+        val (hasCounterexample, message) = requireRepl(_.check_by_nitpick())
         if (hasCounterexample) {
           "True" + "<\\SEP>" + message
         } else {
@@ -209,7 +259,7 @@ class IsaReplApplication {
   def _check_by_quickcheck(): String = {
     val result =
       try {
-        val (hasCounterexample, message) = repl.check_by_quickcheck()
+        val (hasCounterexample, message) = requireRepl(_.check_by_quickcheck())
         if (hasCounterexample) {
           "True" + "<\\SEP>" + message
         } else {
@@ -227,7 +277,7 @@ class IsaReplApplication {
   def _find_theorems(queryPatterns: util.ArrayList[String]): String = {
     val result =
       try {
-        val output = repl.find_theorems(queryPatterns.asScala.toList)
+        val output = requireRepl(_.find_theorems(queryPatterns.asScala.toList))
         "True" + "<\\SEP>" + output
       } catch {
         case e: IsabelleMLException =>
@@ -243,7 +293,11 @@ class IsaReplApplication {
   ): String = {
     val result =
       try {
-        val output = repl.find_theorems(queryPatterns.asScala.toList, limit, removeDuplicates)
+        val output = requireRepl(_.find_theorems(
+          queryPatterns.asScala.toList,
+          limit,
+          removeDuplicates
+        ))
         "True" + "<\\SEP>" + output
       } catch {
         case e: IsabelleMLException =>
@@ -255,7 +309,7 @@ class IsaReplApplication {
   def _parse_to_steps(isar_string: String): String = {
     val result =
       try {
-        "True" + "<\\SEP>" + repl.parse_to_steps(isar_string)
+        "True" + "<\\SEP>" + requireRepl(_.parse_to_steps(isar_string))
       } catch {
         case e: IsabelleMLException =>
           "False" + "<\\SEP>" + s"failed for parse the isar proof to steps. Get msg: ${e.getMessage}"
@@ -266,7 +320,7 @@ class IsaReplApplication {
   def _extract_vars(): String = {
     val result =
       try {
-        val vars = repl.extract_vars()
+        val vars = requireRepl(_.extract_vars())
         "True" + "<\\SEP>" + vars.mkString("<\\SEP>")
       } catch {
         case e: IsabelleMLException =>
@@ -278,7 +332,7 @@ class IsaReplApplication {
   def _extract_assms(): String = {
     val result =
       try {
-        val assms = repl.extract_assms()
+        val assms = requireRepl(_.extract_assms())
         "True" + "<\\SEP>" + assms.mkString("<\\SEP>")
       } catch {
         case e: IsabelleMLException =>
@@ -290,7 +344,7 @@ class IsaReplApplication {
   def _extract_goal(): String = {
     val result =
       try {
-        val goal = repl.extract_goal()
+        val goal = requireRepl(_.extract_goal())
         "True" + "<\\SEP>" + goal
       } catch {
         case e: IsabelleMLException =>
@@ -302,7 +356,7 @@ class IsaReplApplication {
   def _extract_thm_deps(isarString: String): String = {
     val result =
       try {
-        val dep_thm_lst = repl.extract_thm_deps(isarString)
+        val dep_thm_lst = requireRepl(_.extract_thm_deps(isarString))
         "True" + "<\\SEP>" + dep_thm_lst.mkString("<\\SEP>")
       } catch {
         case e: IsabelleMLException =>
@@ -314,7 +368,7 @@ class IsaReplApplication {
   def _extract_hammer_facts(): String = {
     val result =
       try {
-        val facts = repl.extract_hammer_facts()
+        val facts = requireRepl(_.extract_hammer_facts())
         "True" + "<\\SEP>" + facts
       } catch {
         case e: IsabelleMLException =>
@@ -326,7 +380,7 @@ class IsaReplApplication {
   def _extract_thm_deps_with_thy_names(isarString: String): String = {
     val result =
       try {
-        val dep_thm_lst = repl.extract_thm_deps_with_thy_names(isarString)
+        val dep_thm_lst = requireRepl(_.extract_thm_deps_with_thy_names(isarString))
         "True" + "<\\SEP>" + dep_thm_lst.mkString("<\\SEP>")
       } catch {
         case e: IsabelleMLException =>
@@ -338,7 +392,7 @@ class IsaReplApplication {
   def _extract_hammer_facts_with_thy_names(): String = {
     val result =
       try {
-        val facts = repl.extract_hammer_facts_with_thy_names()
+        val facts = requireRepl(_.extract_hammer_facts_with_thy_names())
         "True" + "<\\SEP>" + facts
       } catch {
         case e: IsabelleMLException =>
@@ -350,7 +404,7 @@ class IsaReplApplication {
   def _extract_hammer_facts_with_thy_names(filter: String): String = {
     val result =
       try {
-        val facts = repl.extract_hammer_facts_with_thy_names(filter)
+        val facts = requireRepl(_.extract_hammer_facts_with_thy_names(filter))
         "True" + "<\\SEP>" + facts
       } catch {
         case e: IsabelleMLException =>
@@ -366,7 +420,7 @@ class IsaReplApplication {
   ): String = {
     val result =
       try {
-        val facts = repl.extract_hammer_facts_with_thy_names()
+        val facts = requireRepl(_.extract_hammer_facts_with_thy_names())
         "True" + "<\\SEP>" + facts
       } catch {
         case e: IsabelleMLException =>
@@ -378,7 +432,7 @@ class IsaReplApplication {
   def _extract_thms_defined_in_parent(): String = {
     val result =
       try {
-        val facts = repl.extract_thm_defined_in_parent().mkString("<\\SEP>")
+        val facts = requireRepl(_.extract_thm_defined_in_parent()).mkString("<\\SEP>")
         "True" + "<\\SEP>" + facts
       } catch {
         case e: IsabelleMLException =>
@@ -390,7 +444,7 @@ class IsaReplApplication {
   def _mash_state_relearn(): String = {
     val result =
       try {
-        repl.mash_state_relearn()
+        requireRepl(_.mash_state_relearn())
         "True"
       } catch {
         case e: IsabelleMLException =>
@@ -402,7 +456,7 @@ class IsaReplApplication {
   def _clone_tls(tls_name: String): String = {
     val result =
       try {
-        repl.clone_tls(tls_name)
+        requireRepl(_.clone_tls(tls_name))
         "True"
       } catch {
         case e: IsabelleMLException =>
@@ -414,7 +468,7 @@ class IsaReplApplication {
   def _remove_tls(tls_name: String): String = {
     val result =
       try {
-        repl.remove_tls(tls_name)
+        requireRepl(_.remove_tls(tls_name))
         "True"
       } catch {
         case e: IsabelleMLException =>
@@ -426,7 +480,7 @@ class IsaReplApplication {
   def _focus_tls(tls_name: String): String = {
     val result =
       try {
-        repl.focus_tls(tls_name)
+        requireRepl(_.focus_tls(tls_name))
         "True"
       } catch {
         case e: IsabelleMLException =>
@@ -438,7 +492,7 @@ class IsaReplApplication {
   def _proof_finished(): String = {
     val result =
       try {
-        if (repl.check_no_subgoals()) {
+        if (requireRepl(_.check_no_subgoals())) {
           "True" + "<\\SEP>" + "no additional messages"
         } else {
           "False" + "<\\SEP>" + "no additional messages"
