@@ -289,16 +289,23 @@ class IsaREPL(
       compileFunction[ToplevelState, Context]("Toplevel.context_of")
     name_of_transition =
       compileFunction[Transition.T, String]("Toplevel.name_of")
+    /** Parse source text into (transition, source_text) pairs.
+     * Contract: parsing and applying the transitions via `singleTransition` methods yield the same state as executing the source text in isabelle.
+     * Text is extracted using the absolute Token.range_of of each span, which includes before_command keywords (private/qualified).
+    */
     parse_text =
-      compileFunction[Theory, String, List[(Transition.T, String)]]("""fn (thy, text) => let
-        |  val transitions = Outer_Syntax.parse_text thy (K thy) Position.start text
-        |  fun addtext symbols [tr] =
-        |        [(tr, implode symbols)]
-        |    | addtext _ [] = []
-        |    | addtext symbols (tr::nextTr::trs) = let
-        |        val (this,rest) = Library.chop (Position.distance_of (Toplevel.pos_of tr, Toplevel.pos_of nextTr) |> Option.valOf) symbols
-        |        in (tr, implode this) :: addtext rest (nextTr::trs) end
-        |  in addtext (Symbol.explode text) transitions end""".stripMargin)
+      compileFunction[Theory, String, List[(Transition.T, String)]](
+        """fn (thy, text) =>
+        |let val syms = Symbol_Pos.explode (text, Position.start)
+        |in map 
+        |     (fn Command_Span.Span (_, toks) =>
+        |        let val r = Token.range_of toks;
+        |            val (_, s1) = Library.chop (the_default 0 (Position.distance_of (Position.start, #1 r))) syms;
+        |            val (s2, _) = Library.chop (the_default 0 (Position.distance_of r)) s1
+        |        in (Outer_Syntax.parse_span thy (K thy) toks, Symbol_Pos.content s2) end)
+        |     (Outer_Syntax.parse_spans
+        |        (Token.tokenize (Thy_Header.get_keywords thy) {strict = false} syms))
+        |end""".stripMargin)
     toplevel_string_of_state =
       compileFunction[ToplevelState, String](
         "fn (s) => XML.content_of (YXML.parse_body (Toplevel.string_of_state s))"
@@ -1035,6 +1042,9 @@ class IsaREPL(
 
   def getProofLevel: Int = getProofLevel(toplevel)
 
+  // Apply a single transition to the state (ML `Toplevel.command_exception`).
+  // The transition is produced by `parse_text` and its source text by
+  // `parse_to_steps`; the text when re-parsed yields an equivalent transition.
   def singleTransitionWith10sTimeout(
       single_transition: Transition.T,
       top_level_state: ToplevelState
@@ -1115,6 +1125,9 @@ class IsaREPL(
 
   def parse: String = parseStateAction(fileContent)
 
+  // Parse and execute `isar_string` stepwise, returning the final state.
+  // Uses `parse_text` to decompile into transitions, then applies each via
+  // `singleTransition`.  Equivalent to what `isabelle build` or the IDE does.
   @throws(classOf[IsabelleMLException])
   @throws(classOf[TimeoutException])
   def step(
@@ -1484,15 +1497,14 @@ class IsaREPL(
     num_subgoals
   }
 
-  /*
-  parse a string into a list of executable commands
-  it will not execute the commands, just parse them
-   */
+  // Decompile `isar_string` into executable step texts separated by `<\SEP>`.
+  // Each step text, when fed back to `step` / `singleTransition`, produces the
+  // same state transition as executing the original string.  Whitespace-only
+  // spans (ignored by the parser) are filtered.
   def parse_to_steps(isar_string: String): String = {
     val isar_string_trim =
       isar_string.trim.replaceAll("\\s+", " ")
     var steps: String = ""
-    var stateString: String = ""
     for (
       (transition, text) <- parse_text(thy1, isar_string_trim).force.retrieveNow
     ) {
